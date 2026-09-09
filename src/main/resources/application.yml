@@ -1,0 +1,28 @@
+spring:
+  application:
+    name: ecommerce
+
+  # ---- Database connection ----
+  # Fill in once you've added your JDBC driver dependency in build.gradle.
+  # datasource:
+  #   url: jdbc:postgresql://localhost:5432/ecommerce
+  #   username: postgres
+  #   password: postgres
+
+  jpa:
+    # Required by the assignment: schema is managed by Liquibase, not Hibernate.
+    hibernate:
+      ddl-auto: none
+    show-sql: true
+    properties:
+      hibernate:
+        format_sql: true
+
+  # ---- Liquibase ----
+  # Runs automatically on application startup.
+  liquibase:
+    enabled: true
+    change-log: classpath:db/changelog/db.changelog-master.yaml
+
+server:
+  port: 8080
