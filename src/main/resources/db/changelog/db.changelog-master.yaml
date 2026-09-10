@@ -5,6 +5,15 @@ databaseChangeLog:
   # Example:
   # - include:
   #     file: db/changelog/changes/001-create-customer-table.yaml
-  - includeAll:
-      path: db/changelog/changes
-      errorIfMissingOrEmpty: false
+  - include:
+      file: changes/001-create-customer-table.yaml
+      relativeToChangelogFile: true
+  - include:
+      file: changes/002-create-product-table.yaml
+      relativeToChangelogFile: true
+  - include:
+      file: changes/003-create-order-table.yaml
+      relativeToChangelogFile: true
+  - include:
+      file: changes/004-create-order-item-table.yaml
+      relativeToChangelogFile: true

@@ -1,0 +1,75 @@
+databaseChangeLog:
+  - changeSet:
+      id: 002-create-product-table
+      author: Dang Trong Luong
+      changes:
+        - createTable:
+            tableName: products
+            columns:
+              - column:
+                  name: id
+                  type: BIGINT
+                  autoIncrement: true
+                  constraints:
+                    primaryKey: true
+                    primaryKeyName: pk_products
+                    nullable: false
+              - column:
+                  name: name
+                  type: VARCHAR(255)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: price
+                  type: DECIMAL(15,2)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: stock
+                  type: INT
+                  defaultValueNumeric: 0
+                  constraints:
+                    nullable: false
+              - column:
+                  name: status
+                  type: VARCHAR(20)
+                  defaultValue: ACTIVE
+                  constraints:
+                    nullable: false
+              # Optimistic locking (mục 18 - bonus): map với @Version trong entity Product
+              - column:
+                  name: version
+                  type: BIGINT
+                  defaultValueNumeric: 0
+                  constraints:
+                    nullable: false
+              - column:
+                  name: created_at
+                  type: TIMESTAMP
+                  defaultValueComputed: CURRENT_TIMESTAMP
+                  constraints:
+                    nullable: false
+              - column:
+                  name: updated_at
+                  type: TIMESTAMP
+                  defaultValueComputed: CURRENT_TIMESTAMP
+                  constraints:
+                    nullable: false
+
+        - sql:
+            sql: ALTER TABLE products ADD CONSTRAINT chk_products_price_positive CHECK (price > 0)
+        - sql:
+            sql: ALTER TABLE products ADD CONSTRAINT chk_products_stock_non_negative CHECK (stock >= 0)
+
+        - createIndex:
+            indexName: idx_products_status
+            tableName: products
+            columns:
+              - column:
+                  name: status
+        - createIndex:
+            indexName: idx_products_name
+            tableName: products
+            columns:
+              - column:
+                  name: name
