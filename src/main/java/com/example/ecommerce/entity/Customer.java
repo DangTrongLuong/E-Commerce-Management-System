@@ -39,7 +39,7 @@ public class Customer {
     @Column(nullable = false, name = "created_at")
     private LocalDateTime createdAt;
 
-    @Column(name = "updated_at")
+    @Column(nullable = false, name = "updated_at")
     private LocalDateTime updatedAt;
 
     @OneToMany(mappedBy = "customer", fetch = FetchType.LAZY)
@@ -49,6 +49,7 @@ public class Customer {
     @PrePersist
     protected void onCreate(){
         createdAt = LocalDateTime.now();
+        updatedAt = LocalDateTime.now();
     }
 
     @PreUpdate
