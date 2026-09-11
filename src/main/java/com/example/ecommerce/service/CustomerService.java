@@ -1,16 +1,22 @@
 package com.example.ecommerce.service;
 
 import com.example.ecommerce.dto.request.CustomerCreationRequest;
+import com.example.ecommerce.dto.request.CustomerUpdateRequest;
 import com.example.ecommerce.dto.response.CustomerResponse;
+import com.example.ecommerce.dto.response.PageResponse;
 import com.example.ecommerce.entity.Customer;
+import com.example.ecommerce.exception.ConflictException;
 import com.example.ecommerce.mapper.CustomerMapper;
 import com.example.ecommerce.repository.CustomerRepository;
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
 import lombok.experimental.FieldDefaults;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 
+import org.springframework.data.domain.Pageable;
 import java.util.List;
 
 @Service
@@ -32,10 +38,17 @@ public class CustomerService {
 
     }
 
-    public List<CustomerResponse> getCustomer(){
-        return customerRepository.findAll().stream()
-                .map(customerMapper::toResponse)
-                .toList();
+//    public List<CustomerResponse> getCustomer(){
+//        return customerRepository.findAll().stream()
+//                .map(customerMapper::toResponse)
+//                .toList();
+//    }
+
+    public PageResponse<CustomerResponse> getAllCustomer(int page, int size){
+        Pageable pageable = PageRequest.of(page,size);
+        Page<Customer> customerPage = customerRepository.findAll(pageable);
+        Page<CustomerResponse> customerResponses = customerPage.map(customerMapper::toResponse);
+        return PageResponse.of(customerResponses);
     }
 
     public CustomerResponse getCustomerById(int id){
@@ -45,7 +58,7 @@ public class CustomerService {
         return customerMapper.toResponse(customer);
     }
 
-    public CustomerResponse updateCustomer(int id, CustomerCreationRequest customerCreationRequest){
+    public CustomerResponse updateCustomer(int id, CustomerUpdateRequest customerCreationRequest){
         Customer customer = customerRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Không tìm thấy khác hàng !"));
 
@@ -63,6 +76,10 @@ public class CustomerService {
     public void deteleCustomer(int id){
         Customer customer = customerRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Không tìm thấy khách hàng"));
+
+        if(!customer.getOrders().isEmpty()){
+            throw new ConflictException("Không thể xóa khách đàng đã có đơn hàng");
+        }
 
         customerRepository.delete(customer);
     }

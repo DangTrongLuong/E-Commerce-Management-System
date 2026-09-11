@@ -1,6 +1,7 @@
 package com.example.ecommerce.mapper;
 
 import com.example.ecommerce.dto.request.CustomerCreationRequest;
+import com.example.ecommerce.dto.request.CustomerUpdateRequest;
 import com.example.ecommerce.dto.response.CustomerResponse;
 import com.example.ecommerce.entity.Customer;
 import org.mapstruct.Mapper;
@@ -13,7 +14,7 @@ public interface CustomerMapper {
     CustomerResponse toResponse(Customer customer);
 
     void updateCustomer(
-            CustomerCreationRequest request,
+            CustomerUpdateRequest request,
             @MappingTarget Customer customer
     );
 }

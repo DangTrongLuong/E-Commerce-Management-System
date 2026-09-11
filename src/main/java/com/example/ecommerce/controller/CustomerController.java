@@ -1,8 +1,10 @@
 package com.example.ecommerce.controller;
 
 import com.example.ecommerce.dto.request.CustomerCreationRequest;
+import com.example.ecommerce.dto.request.CustomerUpdateRequest;
 import com.example.ecommerce.dto.response.ApiResponse;
 import com.example.ecommerce.dto.response.CustomerResponse;
+import com.example.ecommerce.dto.response.PageResponse;
 import com.example.ecommerce.service.CustomerService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -41,12 +43,26 @@ public class CustomerController {
 
     }
 
+//    @GetMapping
+//    @Operation(summary = "Lấy thông tin danh sách khách hàng")
+//    public ResponseEntity<ApiResponse<List<CustomerResponse>>> getAllCustomer(){
+//        return ResponseEntity
+//                .status(HttpStatus.OK)
+//                .body(ApiResponse.success("Lấy danh sách khách hàng thành công !", customerService.getCustomer()));
+//    }
+
     @GetMapping
-    @Operation(summary = "Lấy thông tin danh sách khách hàng")
-    public ResponseEntity<ApiResponse<List<CustomerResponse>>> getAllCustomer(){
+    @Operation(summary = "Lấy danh sách khách hàng bằng phân trang")
+    public ResponseEntity<ApiResponse<PageResponse<CustomerResponse>>> getAllCustomer(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size
+    ){
         return ResponseEntity
                 .status(HttpStatus.OK)
-                .body(ApiResponse.success("Lấy danh sách khách hàng thành công !", customerService.getCustomer()));
+                .body(ApiResponse.success(
+                        "Lấy danh sách phân trang thành công",
+                        customerService.getAllCustomer(page, size))
+                );
     }
 
     @GetMapping("/{id}")
@@ -63,10 +79,10 @@ public class CustomerController {
     @Operation(summary = "Chỉnh sửa thông tin khách hàng")
     public ResponseEntity<ApiResponse<CustomerResponse>> updateCustomer(
             @PathVariable Integer id,
-            @Valid @RequestBody CustomerCreationRequest customerCreationRequest
+            @Valid @RequestBody CustomerUpdateRequest customerUpdateRequest
             ){
 
-        CustomerResponse customerResponse = customerService.updateCustomer(id, customerCreationRequest);
+        CustomerResponse customerResponse = customerService.updateCustomer(id, customerUpdateRequest);
 
         log.info("Cập nhật thành công khách hàng: {}", id);
 
