@@ -31,6 +31,7 @@ import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDateTime;
 import java.util.*;
 
 @Service
@@ -178,6 +179,31 @@ public class OrderService {
         return orderMapper.toResponse(savedOrder);
     }
 
+    @Transactional
+    public void cancelExpiredPendingOrders() {
+        LocalDateTime threshold = LocalDateTime.now().minusHours(24);
+        List<Order> expiredOrders = orderRepository.findByStatusAndCreatedAtBefore(OrderStatus.PENDING, threshold);
 
+        if (expiredOrders.isEmpty()) {
+            log.info("Không có đơn hàng PENDING nào quá hạn 24h cần hủy");
+            return;
+        }
+
+        for (Order order : expiredOrders) {
+            for (OrderItem item : order.getOrderItems()) {
+                Product product = item.getProduct();
+                product.setStock(product.getStock() + item.getQuantity());
+                productRepository.save(product);
+            }
+
+            order.setStatus(OrderStatus.CANCELLED);
+            orderRepository.save(order);
+
+            log.info("Tự động hủy đơn hàng {} (PENDING quá 24h kể từ {}) và hoàn lại tồn kho cho {} sản phẩm",
+                    order.getId(), order.getCreatedAt(), order.getOrderItems().size());
+        }
+
+        log.info("Đã tự động hủy {} đơn hàng PENDING quá hạn", expiredOrders.size());
+    }
 
 }
