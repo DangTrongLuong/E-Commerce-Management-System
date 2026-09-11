@@ -9,6 +9,7 @@ import com.example.ecommerce.enums.ProductStatus;
 import com.example.ecommerce.exception.ConflictException;
 import com.example.ecommerce.mapper.ProductMapper;
 import com.example.ecommerce.repository.ProductRepository;
+import com.example.ecommerce.util.SortUtils;
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
 import lombok.experimental.FieldDefaults;
@@ -20,6 +21,8 @@ import org.springframework.data.domain.Sort;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 
+import java.util.Optional;
+
 @Service
 @RequiredArgsConstructor
 @Slf4j
@@ -29,6 +32,16 @@ public class ProductService {
     ProductMapper productMapper;
 
     public ProductResponse createProduct(ProductCreationRequest productCreationRequest){
+        boolean nameExists = productRepository
+                .findByNameIgnoreCase(productCreationRequest.getName())
+                .isPresent();
+
+        if (nameExists) {
+            throw new ConflictException(
+                    "Sản phẩm với tên '" + productCreationRequest.getName()
+                            + "' đã tồn tại.");
+        }
+
         Product product = productMapper.toProduct(productCreationRequest);
 
         if(product.getStock() == null) product.setStock(0);
@@ -49,24 +62,7 @@ public class ProductService {
             int size,
             String sort){
 
-        Sort sorting = Sort.unsorted();
-
-        if(sort != null && !sort.isBlank()){
-            String[] sortParams = sort.split(",");
-
-            String field = sortParams[0];
-
-            Sort.Direction direction = Sort.Direction.ASC;
-
-            if (field.equalsIgnoreCase("asc") || field.equalsIgnoreCase("desc")) {
-                direction = field.equalsIgnoreCase("desc") ? Sort.Direction.DESC : Sort.Direction.ASC;
-                field = "id";
-            }
-            else if (sortParams.length > 1 && sortParams[1].trim().equalsIgnoreCase("desc")) {
-                direction = Sort.Direction.DESC;
-            }
-            sorting = Sort.by(direction, field);
-        }
+        Sort sorting = SortUtils.buildSort(sort, "id");
         Pageable pageable = PageRequest.of(page, size, sorting);
 
         Specification<Product> specification = Specification.unrestricted();

@@ -32,7 +32,7 @@ public class OrderItem {
     @Column(name = "unit_price", nullable = false, precision = 15, scale = 2)
     private BigDecimal unitPrice;
 
-    @Column(name = " subtotal", nullable = false, precision = 15, scale = 2)
+    @Column(name = "subtotal", nullable = false, precision = 15, scale = 2)
     private BigDecimal subTotal;
 
     public void caculateSubtotal(){

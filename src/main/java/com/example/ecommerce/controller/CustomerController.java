@@ -4,8 +4,11 @@ import com.example.ecommerce.dto.request.CustomerCreationRequest;
 import com.example.ecommerce.dto.request.CustomerUpdateRequest;
 import com.example.ecommerce.dto.response.ApiResponse;
 import com.example.ecommerce.dto.response.CustomerResponse;
+import com.example.ecommerce.dto.response.OrderResponse;
 import com.example.ecommerce.dto.response.PageResponse;
+import com.example.ecommerce.enums.OrderStatus;
 import com.example.ecommerce.service.CustomerService;
+import com.example.ecommerce.service.OrderService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
@@ -28,6 +31,7 @@ import java.util.List;
 public class CustomerController {
     private static final Logger log = LoggerFactory.getLogger(CustomerController.class);
     CustomerService customerService;
+    OrderService orderService;
 
     @PostMapping
     @Operation(summary = "Tạo 1 khách hàng mới")
@@ -103,6 +107,23 @@ public class CustomerController {
                         "Xóa khách hàng thành công !",
                         null
                 ));
+    }
+
+    @GetMapping("/{id}/orders")
+    @Operation(summary = "Lấy danh sách đơn hàng của 1 khách hàng")
+    public ResponseEntity<ApiResponse<PageResponse<OrderResponse>>> getOrdersByCustomer(
+            @PathVariable("id") Integer customerId,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size,
+            @RequestParam(required = false) OrderStatus status,
+            @RequestParam(required = false) String sort
+    ) {
+        return ResponseEntity.ok(
+                ApiResponse.success(
+                        "Lấy danh sách đơn hàng của khách hàng thành công !",
+                        orderService.getOrdersByCustomer(customerId, status, page, size, sort)
+                )
+        );
     }
 
 }
