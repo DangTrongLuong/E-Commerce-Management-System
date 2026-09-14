@@ -1,9 +1,9 @@
 package com.example.ecommerce.dto.request;
 
 import com.example.ecommerce.validation.UniqueEmail;
-import jakarta.validation.constraints.Email;
+import com.example.ecommerce.validation.ValidPassword;
 import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.Size;
+import jakarta.validation.constraints.Pattern;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -19,13 +19,21 @@ public class RegisterRequest {
     private String name;
 
     @NotBlank(message = "Email không được để trống")
-    @Email(message = "Email không đúng định dạng")
+    @Pattern(
+            regexp = "^[A-Za-z0-9._%+-]+@gmail\\.com$",
+            message = "Email phải đúng định dạng và có đuôi @gmail.com"
+    )
     @UniqueEmail
     private String email;
 
     @NotBlank(message = "Mật khẩu không được để trống")
-    @Size(min = 6, message = "Mật khẩu phải từ 6 ký tự trở lên")
+    @ValidPassword
     private String password;
 
+    @NotBlank(message = "Số điện thoại không được để trống")
+    @Pattern(
+            regexp = "^0\\d{9}$",
+            message = "Số điện thoại phải bắt đầu bằng số 0 và có đủ 10 chữ số"
+    )
     private String phone;
 }
