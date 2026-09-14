@@ -1,10 +1,10 @@
 databaseChangeLog:
   - changeSet:
-      id: 002-create-product-table
-      author: Dang Trong Luong
+      id: 005-create-user-table
+      author: Antigravity
       changes:
         - createTable:
-            tableName: products
+            tableName: users
             columns:
               - column:
                   name: id
@@ -12,22 +12,30 @@ databaseChangeLog:
                   autoIncrement: true
                   constraints:
                     primaryKey: true
-                    primaryKeyName: pk_products
+                    primaryKeyName: pk_users
                     nullable: false
               - column:
-                  name: name
+                  name: email
+                  type: VARCHAR(255)
+                  constraints:
+                    nullable: false
+                    unique: true
+                    uniqueConstraintName: uk_users_email
+              - column:
+                  name: password
                   type: VARCHAR(255)
                   constraints:
                     nullable: false
               - column:
-                  name: price
-                  type: DECIMAL(15,2)
+                  name: role
+                  type: VARCHAR(20)
+                  defaultValue: USER
                   constraints:
                     nullable: false
               - column:
-                  name: stock
+                  name: token_version
                   type: INT
-                  defaultValueNumeric: 0
+                  defaultValueNumeric: 1
                   constraints:
                     nullable: false
               - column:
@@ -37,11 +45,12 @@ databaseChangeLog:
                   constraints:
                     nullable: false
               - column:
-                  name: version
+                  name: customer_id
                   type: BIGINT
-                  defaultValueNumeric: 0
                   constraints:
-                    nullable: false
+                    nullable: true
+                    unique: true
+                    uniqueConstraintName: uk_users_customer_id
               - column:
                   name: created_at
                   type: TIMESTAMP
@@ -55,20 +64,18 @@ databaseChangeLog:
                   constraints:
                     nullable: false
 
-        - sql:
-            sql: ALTER TABLE products ADD CONSTRAINT chk_products_price_positive CHECK (price > 0)
-        - sql:
-            sql: ALTER TABLE products ADD CONSTRAINT chk_products_stock_non_negative CHECK (stock >= 0)
+        - addForeignKeyConstraint:
+            baseTableName: users
+            baseColumnNames: customer_id
+            constraintName: fk_users_customer
+            referencedTableName: customers
+            referencedColumnNames: id
+            onDelete: SET NULL
+            onUpdate: CASCADE
 
         - createIndex:
-            indexName: idx_products_status
-            tableName: products
+            indexName: idx_users_email
+            tableName: users
             columns:
               - column:
-                  name: status
-        - createIndex:
-            indexName: idx_products_name
-            tableName: products
-            columns:
-              - column:
-                  name: name
+                  name: email

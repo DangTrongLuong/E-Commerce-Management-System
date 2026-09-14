@@ -62,27 +62,28 @@ dependencies {
 	 annotationProcessor 'org.projectlombok:lombok-mapstruct-binding:0.2.0'
 
 	// --- #15 Spring Security + JWT ---
-	// implementation 'org.springframework.boot:spring-boot-starter-security'
-	// implementation 'io.jsonwebtoken:jjwt-api:0.12.6'
-	// runtimeOnly 'io.jsonwebtoken:jjwt-impl:0.12.6'
-	// runtimeOnly 'io.jsonwebtoken:jjwt-jackson:0.12.6'
-	// testImplementation 'org.springframework.security:spring-security-test'
+	implementation 'org.springframework.boot:spring-boot-starter-security'
+	implementation 'io.jsonwebtoken:jjwt-api:0.12.6'
+	runtimeOnly 'io.jsonwebtoken:jjwt-impl:0.12.6'
+	runtimeOnly 'io.jsonwebtoken:jjwt-jackson:0.12.6'
+	testImplementation 'org.springframework.security:spring-security-test'
 
 	// --- #16 Scheduled Job ---
 	// No extra dependency needed — just add @EnableScheduling + @Scheduled.
 
 	// --- #17 Spring Batch (CSV import) ---
-	// implementation 'org.springframework.boot:spring-boot-starter-batch'
-	// testImplementation 'org.springframework.batch:spring-batch-test'
-	// implementation 'org.apache.commons:commons-csv:1.11.0'
+	implementation 'org.springframework.boot:spring-boot-starter-batch'
+	testImplementation 'org.springframework.batch:spring-batch-test'
+	implementation 'org.apache.commons:commons-csv:1.11.0'
 
 	// --- #18 Optimistic Locking (@Version) ---
 	// No extra dependency needed — it's built into Spring Data JPA.
 
 	// --- #19 Testing with Testcontainers ---
-	// testImplementation platform('org.testcontainers:testcontainers-bom:1.20.4')
-	// testImplementation 'org.testcontainers:junit-jupiter'
-	// testImplementation 'org.testcontainers:postgresql' // or 'mysql', matching your DB
+	testImplementation platform('org.testcontainers:testcontainers-bom:1.20.4')
+	testImplementation 'org.testcontainers:junit-jupiter'
+	testImplementation 'org.testcontainers:mysql'
+
 
 	// --- #20 Swagger / OpenAPI ---
 	 implementation 'org.springdoc:springdoc-openapi-starter-webmvc-ui:2.8.17'

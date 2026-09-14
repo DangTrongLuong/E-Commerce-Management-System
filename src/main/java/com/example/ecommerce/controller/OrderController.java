@@ -17,6 +17,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
@@ -25,11 +26,13 @@ import org.springframework.web.bind.annotation.*;
 @FieldDefaults(makeFinal = true, level = AccessLevel.PRIVATE)
 @Tag(name = "Order", description = "Order catalog endpoints")
 public class OrderController {
+
     private static final Logger log = LoggerFactory.getLogger(OrderController.class);
     OrderService orderService;
 
-    @PostMapping()
-    @Operation(summary = "Tạo đơn hàng mới")
+    @PostMapping
+    @PreAuthorize("hasAnyRole('USER', 'ADMIN')")
+    @Operation(summary = "Tạo đơn hàng mới (User / Admin)")
     public ResponseEntity<ApiResponse<OrderResponse>> createOrder(
             @Valid @RequestBody OrderCreationRequest request
     ) {
@@ -41,7 +44,8 @@ public class OrderController {
     }
 
     @GetMapping("/{id}")
-    @Operation(summary = "Lấy thông tin chi tiết 1 đơn hàng")
+    @PreAuthorize("hasAnyRole('USER', 'ADMIN')")
+    @Operation(summary = "Lấy thông tin chi tiết 1 đơn hàng (User / Admin)")
     public ResponseEntity<ApiResponse<OrderResponse>> getOrderById(@PathVariable Integer id) {
         OrderResponse orderResponse = orderService.getOrderById(id);
         return ResponseEntity
@@ -49,8 +53,9 @@ public class OrderController {
                 .body(ApiResponse.success("Lấy thông tin đơn hàng thành công !", orderResponse));
     }
 
-    @GetMapping()
-    @Operation(summary = "Lấy danh sách đơn hàng")
+    @GetMapping
+    @PreAuthorize("hasRole('ADMIN')")
+    @Operation(summary = "Lấy tất cả danh sách đơn hàng (Admin)")
     public ResponseEntity<ApiResponse<PageResponse<OrderResponse>>> getAllOrders(
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size,
@@ -65,9 +70,9 @@ public class OrderController {
         );
     }
 
-
     @PatchMapping("/{id}/status")
-    @Operation(summary = "Cập nhật trạng thái đơn hàng")
+    @PreAuthorize("hasRole('ADMIN')")
+    @Operation(summary = "Cập nhật trạng thái đơn hàng (Admin)")
     public ResponseEntity<ApiResponse<OrderResponse>> updateOrderStatus(
             @PathVariable Integer id,
             @Valid @RequestBody OrderStatusUpdateRequest request
@@ -79,4 +84,3 @@ public class OrderController {
                 .body(ApiResponse.success("Cập nhật trạng thái đơn hàng thành công !", orderResponse));
     }
 }
-

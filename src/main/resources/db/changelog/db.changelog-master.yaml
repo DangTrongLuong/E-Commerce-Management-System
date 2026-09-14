@@ -12,3 +12,7 @@ databaseChangeLog:
   - include:
       file: changes/004-create-order-item-table.yaml
       relativeToChangelogFile: true
+  - include:
+      file: changes/005-create-user-table.yaml
+      relativeToChangelogFile: true
+

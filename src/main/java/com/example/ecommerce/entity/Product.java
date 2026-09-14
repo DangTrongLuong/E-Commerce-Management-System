@@ -39,6 +39,10 @@ public class Product {
     @Builder.Default
     private ProductStatus status = ProductStatus.ACTIVE;
 
+    @Version
+    @Builder.Default
+    private int version = 0;
+
     @Column(nullable = false, name = "created_at")
     private LocalDateTime createdAt;
 

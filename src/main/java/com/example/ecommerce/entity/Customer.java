@@ -46,6 +46,9 @@ public class Customer {
     @Builder.Default
     private List<Order> orders = new ArrayList<>();
 
+    @OneToOne(mappedBy = "customer", fetch = FetchType.LAZY)
+    private User user;
+
     @PrePersist
     protected void onCreate(){
         createdAt = LocalDateTime.now();

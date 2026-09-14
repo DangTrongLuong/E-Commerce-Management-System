@@ -7,6 +7,7 @@ import com.example.ecommerce.dto.response.ProductResponse;
 import com.example.ecommerce.entity.Product;
 import com.example.ecommerce.enums.ProductStatus;
 import com.example.ecommerce.exception.ConflictException;
+import com.example.ecommerce.exception.ResourceNotFoundException;
 import com.example.ecommerce.mapper.ProductMapper;
 import com.example.ecommerce.repository.ProductRepository;
 import com.example.ecommerce.util.SortUtils;
@@ -31,7 +32,7 @@ public class ProductService {
     ProductRepository productRepository;
     ProductMapper productMapper;
 
-    public ProductResponse createProduct(ProductCreationRequest productCreationRequest){
+    public ProductResponse createProduct(ProductCreationRequest productCreationRequest) {
         boolean nameExists = productRepository
                 .findByNameIgnoreCase(productCreationRequest.getName())
                 .isPresent();
@@ -44,23 +45,25 @@ public class ProductService {
 
         Product product = productMapper.toProduct(productCreationRequest);
 
-        if(product.getStock() == null) product.setStock(0);
-        return  productMapper.toResponse(productRepository.save(product));
+        if (product.getStock() == null)
+            product.setStock(0);
+        return productMapper.toResponse(productRepository.save(product));
     }
 
-//    public PageResponse<ProductResponse> getAllProduct(int page, int size){
-//        Pageable pageable = PageRequest.of(page, size);
-//        Page<Product> productPage = productRepository.findAll(pageable);
-//        Page<ProductResponse> productResponsePage = productPage.map(productMapper::toResponse);
-//        return PageResponse.of(productResponsePage);
-//    }
+    // public PageResponse<ProductResponse> getAllProduct(int page, int size){
+    // Pageable pageable = PageRequest.of(page, size);
+    // Page<Product> productPage = productRepository.findAll(pageable);
+    // Page<ProductResponse> productResponsePage =
+    // productPage.map(productMapper::toResponse);
+    // return PageResponse.of(productResponsePage);
+    // }
 
     public PageResponse<ProductResponse> getAllProduct(
             String keyword,
             ProductStatus status,
             int page,
             int size,
-            String sort){
+            String sort) {
 
         Sort sorting = SortUtils.buildSort(sort, "id");
         Pageable pageable = PageRequest.of(page, size, sorting);
@@ -69,55 +72,48 @@ public class ProductService {
 
         if (keyword != null && !keyword.isBlank()) {
             specification = specification.and(
-                    (root, query, cb) ->
-                            cb.like(
-                                    cb.lower(root.get("name")),
-                                    "%" + keyword.toLowerCase() + "%"
-                            )
-            );
+                    (root, query, cb) -> cb.like(
+                            cb.lower(root.get("name")),
+                            "%" + keyword.toLowerCase() + "%"));
         }
 
         if (status != null) {
             specification = specification.and(
-                    (root, query, cb) ->
-                            cb.equal(root.get("status"), status)
-            );
+                    (root, query, cb) -> cb.equal(root.get("status"), status));
         }
 
-        Page<Product> productPage = productRepository.findAll(specification,pageable);
+        Page<Product> productPage = productRepository.findAll(specification, pageable);
         Page<ProductResponse> productResponsePage = productPage.map(productMapper::toResponse);
 
         return PageResponse.of(productResponsePage);
     }
 
-    public ProductResponse getProductById(int id){
+    public ProductResponse getProductById(int id) {
         Product product = productRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Không tìm thấy thông tin sản phẩm"));
+                .orElseThrow(() -> ResourceNotFoundException.of("Sản phẩm", "id", id));
 
         return productMapper.toResponse(product);
     }
 
-    public ProductResponse updateProduct(int id, ProductUpdateRequest productUpdateRequest){
+    public ProductResponse updateProduct(int id, ProductUpdateRequest productUpdateRequest) {
         Product product = productRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Không tìm thấy sản phẩm"));
+                .orElseThrow(() -> ResourceNotFoundException.of("Sản phẩm", "id", id));
 
         productMapper.updateProduct(productUpdateRequest, product);
         return productMapper.toResponse(
-                productRepository.save(product)
-        );
+                productRepository.save(product));
 
     }
 
-    public void deleteProduct(int id){
+    public void deleteProduct(int id) {
         Product product = productRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Không tìm thấy sản phẩm tương ứng !"));
+                .orElseThrow(() -> ResourceNotFoundException.of("Sản phẩm", "id", id));
 
-        if(!product.getOrderItems().isEmpty()){
+        if (!product.getOrderItems().isEmpty()) {
             throw new ConflictException("Không thể xóa sản phẩm đã có trong đơn hàng !");
         }
 
-        productRepository.save(product);
+        productRepository.delete(product);
     }
-
 
 }

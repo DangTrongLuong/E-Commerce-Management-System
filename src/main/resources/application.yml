@@ -29,6 +29,14 @@ spring:
     enabled: true
     change-log: classpath:db/changelog/db.changelog-master.yaml
 
+  # ---- Spring Batch ----
+  batch:
+    jdbc:
+      initialize-schema: always
+    job:
+      enabled: false
+
+
 server:
   port: 8080
 
