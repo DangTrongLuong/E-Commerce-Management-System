@@ -1,6 +1,7 @@
 package com.example.ecommerce.dto.response;
 
 import com.example.ecommerce.enums.Role;
+import com.example.ecommerce.enums.UserStatus;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -14,9 +15,10 @@ import java.time.LocalDateTime;
 @NoArgsConstructor
 public class UserResponse {
 
-    private int id;
+    private Long id;
     private String email;
     private Role role;
-    private Integer customerId;
+    private UserStatus status;
+    private Long customerId;
     private LocalDateTime createdAt;
 }

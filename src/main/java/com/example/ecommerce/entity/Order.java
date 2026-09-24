@@ -1,5 +1,6 @@
 package com.example.ecommerce.entity;
 
+import com.example.ecommerce.enums.OrderPaymentStatus;
 import com.example.ecommerce.enums.OrderStatus;
 import jakarta.persistence.*;
 import lombok.*;
@@ -40,6 +41,14 @@ public class Order {
     @Enumerated(EnumType.STRING)
     @Builder.Default
     private OrderStatus status = OrderStatus.PENDING;
+
+    @Column(name = "payment_status", nullable = false, length = 20)
+    @Enumerated(EnumType.STRING)
+    @Builder.Default
+    private OrderPaymentStatus paymentStatus = OrderPaymentStatus.UNPAID;
+
+    @Column(name = "cancel_reason", length = 500)
+    private String cancelReason;
 
     @Column(nullable = false, name = "created_at")
     private LocalDateTime createdAt;

@@ -47,7 +47,7 @@ public class Customer {
     private List<Order> orders = new ArrayList<>();
 
     @OneToOne(mappedBy = "customer", fetch = FetchType.LAZY)
-    private User user;
+    private AppUser user;
 
     @PrePersist
     protected void onCreate(){

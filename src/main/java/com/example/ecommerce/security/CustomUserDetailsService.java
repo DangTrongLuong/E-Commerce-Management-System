@@ -1,34 +1,47 @@
 package com.example.ecommerce.security;
 
-import com.example.ecommerce.entity.User;
-import com.example.ecommerce.repository.UserRepository;
+import com.example.ecommerce.entity.AppUser;
+import com.example.ecommerce.enums.UserStatus;
+import com.example.ecommerce.repository.AppUserRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
+import org.springframework.security.core.userdetails.User;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.stereotype.Service;
 
+import java.time.LocalDateTime;
 import java.util.List;
 
 @Service
 @RequiredArgsConstructor
 public class CustomUserDetailsService implements UserDetailsService {
 
-    private final UserRepository userRepository;
+    private final AppUserRepository userRepository;
 
     @Override
     public UserDetails loadUserByUsername(String email) throws UsernameNotFoundException {
-        User user = userRepository.findByEmail(email)
-                .orElseThrow(() -> new UsernameNotFoundException("Không tìm thấy người dùng với email: " + email));
+        AppUser user = userRepository.findByEmail(email)
+                .orElseThrow(() -> new UsernameNotFoundException("User not found with email: " + email));
 
-        String roleName = user.getRole().name().startsWith("ROLE_") 
-                ? user.getRole().name() 
+        boolean enabled = user.getStatus() == UserStatus.ACTIVE;
+        boolean accountNonLocked = user.getStatus() != UserStatus.LOCKED;
+        if (user.getLockedUntil() != null && user.getLockedUntil().isBefore(LocalDateTime.now())) {
+            accountNonLocked = true;
+        }
+
+        String roleName = user.getRole().name().startsWith("ROLE_")
+                ? user.getRole().name()
                 : "ROLE_" + user.getRole().name();
 
-        return new org.springframework.security.core.userdetails.User(
+        return new User(
                 user.getEmail(),
-                user.getPassword(),
+                user.getPasswordHash(),
+                enabled,
+                true,
+                true,
+                accountNonLocked,
                 List.of(new SimpleGrantedAuthority(roleName))
         );
     }

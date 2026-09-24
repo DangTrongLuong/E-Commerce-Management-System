@@ -50,6 +50,7 @@ dependencies {
 	testCompileOnly 'org.projectlombok:lombok'
 	testAnnotationProcessor 'org.projectlombok:lombok'
 	testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+	testRuntimeOnly 'com.h2database:h2'
 
 	// =====================================================================
 	// OPTIONAL / BONUS — uncomment whichever sections your interns attempt.
@@ -86,7 +87,15 @@ dependencies {
 
 
 	// --- #20 Swagger / OpenAPI ---
-	 implementation 'org.springdoc:springdoc-openapi-starter-webmvc-ui:2.8.17'
+	implementation 'org.springdoc:springdoc-openapi-starter-webmvc-ui:2.8.17'
+
+	// --- PDF Generation ---
+	implementation 'com.github.librepdf:openpdf:2.0.3'
+
+	implementation 'org.docx4j:docx4j-JAXB-ReferenceImpl:11.4.11'
+
+	// --- JasperReports ---
+	implementation 'net.sf.jasperreports:jasperreports:6.21.3'
 }
 
 tasks.named('test') {

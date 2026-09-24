@@ -1,0 +1,130 @@
+databaseChangeLog:
+  - changeSet:
+      id: 012-create-purchase-ticket
+      author: Antigravity
+      changes:
+        - createTable:
+            tableName: purchase_ticket
+            columns:
+              - column:
+                  name: id
+                  type: BIGINT
+                  autoIncrement: true
+                  constraints:
+                    primaryKey: true
+                    primaryKeyName: pk_purchase_ticket
+                    nullable: false
+              - column:
+                  name: order_id
+                  type: BIGINT
+                  constraints:
+                    nullable: false
+                    unique: true
+                    uniqueConstraintName: uk_purchase_ticket_order
+              - column:
+                  name: requester_id
+                  type: BIGINT
+                  constraints:
+                    nullable: false
+              - column:
+                  name: approver_id
+                  type: BIGINT
+                  constraints:
+                    nullable: true
+              - column:
+                  name: status
+                  type: VARCHAR(30)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: required_level
+                  type: INT
+                  defaultValueNumeric: 1
+                  constraints:
+                    nullable: false
+              - column:
+                  name: current_level
+                  type: INT
+                  defaultValueNumeric: 1
+                  constraints:
+                    nullable: false
+              - column:
+                  name: due_at
+                  type: TIMESTAMP
+                  constraints:
+                    nullable: false
+              - column:
+                  name: decided_at
+                  type: TIMESTAMP
+              - column:
+                  name: version
+                  type: BIGINT
+                  defaultValueNumeric: 0
+                  constraints:
+                    nullable: false
+              - column:
+                  name: created_at
+                  type: TIMESTAMP
+                  defaultValueComputed: CURRENT_TIMESTAMP
+                  constraints:
+                    nullable: false
+              - column:
+                  name: updated_at
+                  type: TIMESTAMP
+                  defaultValueComputed: CURRENT_TIMESTAMP
+                  constraints:
+                    nullable: false
+
+        - addForeignKeyConstraint:
+            baseTableName: purchase_ticket
+            baseColumnNames: order_id
+            constraintName: fk_ticket_order
+            referencedTableName: orders
+            referencedColumnNames: id
+            onDelete: CASCADE
+            onUpdate: CASCADE
+
+        - addForeignKeyConstraint:
+            baseTableName: purchase_ticket
+            baseColumnNames: requester_id
+            constraintName: fk_ticket_requester
+            referencedTableName: app_user
+            referencedColumnNames: id
+            onDelete: RESTRICT
+            onUpdate: CASCADE
+
+        - addForeignKeyConstraint:
+            baseTableName: purchase_ticket
+            baseColumnNames: approver_id
+            constraintName: fk_ticket_approver
+            referencedTableName: app_user
+            referencedColumnNames: id
+            onDelete: SET NULL
+            onUpdate: CASCADE
+
+        - createIndex:
+            indexName: idx_ticket_approver_status
+            tableName: purchase_ticket
+            columns:
+              - column:
+                  name: approver_id
+              - column:
+                  name: status
+
+        - createIndex:
+            indexName: idx_ticket_requester_status
+            tableName: purchase_ticket
+            columns:
+              - column:
+                  name: requester_id
+              - column:
+                  name: status
+
+        - createIndex:
+            indexName: idx_ticket_status_due
+            tableName: purchase_ticket
+            columns:
+              - column:
+                  name: status
+              - column:
+                  name: due_at

@@ -1,5 +1,6 @@
 package com.example.ecommerce.dto.response;
 
+import com.example.ecommerce.enums.OrderPaymentStatus;
 import com.example.ecommerce.enums.OrderStatus;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -21,6 +22,7 @@ public class OrderResponse {
     private List<OrderItemResponse> items;
     private BigDecimal totalAmount;
     private OrderStatus status;
+    private OrderPaymentStatus paymentStatus;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
 }

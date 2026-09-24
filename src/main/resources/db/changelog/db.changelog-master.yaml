@@ -15,4 +15,32 @@ databaseChangeLog:
   - include:
       file: changes/005-create-user-table.yaml
       relativeToChangelogFile: true
+  - include:
+      file: changes/006-create-payment-transaction-table.yaml
+      relativeToChangelogFile: true
+  - include:
+      file: changes/010-create-app-user.yaml
+      relativeToChangelogFile: true
+  - include:
+      file: changes/011-alter-product-add-owner-version.yaml
+      relativeToChangelogFile: true
+  - include:
+      file: changes/012-create-purchase-ticket.yaml
+      relativeToChangelogFile: true
+  - include:
+      file: changes/013-create-ticket-history.yaml
+      relativeToChangelogFile: true
+  - include:
+      file: changes/014-alter-orders-add-cancel-reason.yaml
+      relativeToChangelogFile: true
+  - include:
+      file: changes/015-create-notification.yaml
+      relativeToChangelogFile: true
+  - include:
+      file: changes/016-alter-app-user-add-token-version.yaml
+      relativeToChangelogFile: true
+  - include:
+      file: changes/900-seed-dev-users.yaml
+      relativeToChangelogFile: true
+
 

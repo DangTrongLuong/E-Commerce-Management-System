@@ -1,7 +1,8 @@
 package com.example.ecommerce.security;
 
-import com.example.ecommerce.entity.User;
-import com.example.ecommerce.repository.UserRepository;
+import com.example.ecommerce.entity.AppUser;
+import com.example.ecommerce.enums.UserStatus;
+import com.example.ecommerce.repository.AppUserRepository;
 import com.example.ecommerce.util.JwtUtil;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
@@ -26,7 +27,7 @@ import java.util.List;
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
     private final JwtUtil jwtUtil;
-    private final UserRepository userRepository;
+    private final AppUserRepository userRepository;
 
     @Override
     protected void doFilterInternal(
@@ -44,34 +45,37 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
         final String jwt = authHeader.substring(7);
 
-        if (jwtUtil.validateToken(jwt)) {
-            String email = jwtUtil.extractEmail(jwt);
-            Integer tokenVersion = jwtUtil.extractTokenVersion(jwt);
+        try {
+            if (jwtUtil.validateToken(jwt)) {
+                String email = jwtUtil.extractEmail(jwt);
+                String type = jwtUtil.extractType(jwt);
 
-            if (email != null && SecurityContextHolder.getContext().getAuthentication() == null) {
-                User user = userRepository.findByEmail(email).orElse(null);
+                if ("access".equals(type) && email != null && SecurityContextHolder.getContext().getAuthentication() == null) {
+                    AppUser user = userRepository.findByEmail(email).orElse(null);
 
-                if (user != null) {
-                    if (tokenVersion != null && tokenVersion != user.getTokenVersion()) {
-                        log.warn("Token version không trùng khớp cho user {}. Token cũ đã bị vô hiệu hóa.", email);
-                        filterChain.doFilter(request, response);
-                        return;
+                    if (user != null && user.getStatus() == UserStatus.ACTIVE) {
+                        Integer tokenVersion = jwtUtil.extractTokenVersion(jwt);
+                        if (tokenVersion != null && tokenVersion.equals(user.getTokenVersion())) {
+                            String roleName = user.getRole().name().startsWith("ROLE_")
+                                    ? user.getRole().name()
+                                    : "ROLE_" + user.getRole().name();
+
+                            UsernamePasswordAuthenticationToken authToken = new UsernamePasswordAuthenticationToken(
+                                    user.getEmail(),
+                                    null,
+                                    List.of(new SimpleGrantedAuthority(roleName))
+                            );
+
+                            authToken.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
+                            SecurityContextHolder.getContext().setAuthentication(authToken);
+                        } else {
+                            log.warn("JWT token version mismatch or missing for user {}", email);
+                        }
                     }
-
-                    String roleName = user.getRole().name().startsWith("ROLE_") 
-                            ? user.getRole().name() 
-                            : "ROLE_" + user.getRole().name();
-
-                    UsernamePasswordAuthenticationToken authToken = new UsernamePasswordAuthenticationToken(
-                            user,
-                            null,
-                            List.of(new SimpleGrantedAuthority(roleName))
-                    );
-
-                    authToken.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
-                    SecurityContextHolder.getContext().setAuthentication(authToken);
                 }
             }
+        } catch (Exception e) {
+            log.warn("JWT authentication processing error: {}", e.getMessage());
         }
 
         filterChain.doFilter(request, response);

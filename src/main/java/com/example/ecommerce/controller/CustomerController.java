@@ -99,21 +99,21 @@ public class CustomerController {
                 .body(ApiResponse.success("Xóa khách hàng thành công !", null));
     }
 
-    @GetMapping("/{id}/orders")
-    @PreAuthorize("hasAnyRole('USER', 'ADMIN')")
-    @Operation(summary = "Lấy danh sách đơn hàng của 1 khách hàng (User / Admin)")
-    public ResponseEntity<ApiResponse<PageResponse<OrderResponse>>> getOrdersByCustomer(
-            @PathVariable("id") Integer customerId,
-            @RequestParam(defaultValue = "0") int page,
-            @RequestParam(defaultValue = "20") int size,
-            @RequestParam(required = false) OrderStatus status,
-            @RequestParam(required = false) String sort
-    ) {
-        return ResponseEntity.ok(
-                ApiResponse.success(
-                        "Lấy danh sách đơn hàng của khách hàng thành công !",
-                        orderService.getOrdersByCustomer(customerId, status, page, size, sort)
-                )
-        );
-    }
+//    @GetMapping("/{id}/orders")
+//    @PreAuthorize("hasAnyRole('USER', 'ADMIN')")
+//    @Operation(summary = "Lấy danh sách đơn hàng của 1 khách hàng (User / Admin)")
+//    public ResponseEntity<ApiResponse<PageResponse<OrderResponse>>> getOrdersByCustomer(
+//            @PathVariable("id") Integer customerId,
+//            @RequestParam(defaultValue = "0") int page,
+//            @RequestParam(defaultValue = "20") int size,
+//            @RequestParam(required = false) OrderStatus status,
+//            @RequestParam(required = false) String sort
+//    ) {
+//        return ResponseEntity.ok(
+//                ApiResponse.success(
+//                        "Lấy danh sách đơn hàng của khách hàng thành công !",
+//                        orderService.getOrdersByCustomer(customerId, status, page, size, sort)
+//                )
+//        );
+//    }
 }

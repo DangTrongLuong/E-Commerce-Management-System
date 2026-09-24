@@ -1,0 +1,72 @@
+databaseChangeLog:
+  - changeSet:
+      id: 015-create-notification
+      author: Antigravity
+      changes:
+        - createTable:
+            tableName: notification
+            columns:
+              - column:
+                  name: id
+                  type: BIGINT
+                  autoIncrement: true
+                  constraints:
+                    primaryKey: true
+                    primaryKeyName: pk_notification
+                    nullable: false
+              - column:
+                  name: user_id
+                  type: BIGINT
+                  constraints:
+                    nullable: false
+              - column:
+                  name: type
+                  type: VARCHAR(50)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: ticket_id
+                  type: BIGINT
+                  constraints:
+                    nullable: true
+              - column:
+                  name: message
+                  type: VARCHAR(500)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: read_at
+                  type: TIMESTAMP
+              - column:
+                  name: created_at
+                  type: TIMESTAMP
+                  defaultValueComputed: CURRENT_TIMESTAMP
+                  constraints:
+                    nullable: false
+
+        - addForeignKeyConstraint:
+            baseTableName: notification
+            baseColumnNames: user_id
+            constraintName: fk_notification_user
+            referencedTableName: app_user
+            referencedColumnNames: id
+            onDelete: CASCADE
+            onUpdate: CASCADE
+
+        - addForeignKeyConstraint:
+            baseTableName: notification
+            baseColumnNames: ticket_id
+            constraintName: fk_notification_ticket
+            referencedTableName: purchase_ticket
+            referencedColumnNames: id
+            onDelete: SET NULL
+            onUpdate: CASCADE
+
+        - createIndex:
+            indexName: idx_notification_user_read
+            tableName: notification
+            columns:
+              - column:
+                  name: user_id
+              - column:
+                  name: read_at

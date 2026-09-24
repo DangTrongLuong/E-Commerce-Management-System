@@ -4,12 +4,15 @@ import com.example.ecommerce.dto.request.ProductCreationRequest;
 import com.example.ecommerce.dto.request.ProductUpdateRequest;
 import com.example.ecommerce.dto.response.PageResponse;
 import com.example.ecommerce.dto.response.ProductResponse;
+import com.example.ecommerce.entity.AppUser;
 import com.example.ecommerce.entity.Product;
 import com.example.ecommerce.enums.ProductStatus;
+import com.example.ecommerce.enums.Role;
 import com.example.ecommerce.exception.ConflictException;
 import com.example.ecommerce.exception.ResourceNotFoundException;
 import com.example.ecommerce.mapper.ProductMapper;
 import com.example.ecommerce.repository.ProductRepository;
+import com.example.ecommerce.util.SecurityUtils;
 import com.example.ecommerce.util.SortUtils;
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
@@ -20,9 +23,9 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.jpa.domain.Specification;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
-
-import java.util.Optional;
+import org.springframework.transaction.annotation.Transactional;
 
 @Service
 @RequiredArgsConstructor
@@ -31,32 +34,28 @@ import java.util.Optional;
 public class ProductService {
     ProductRepository productRepository;
     ProductMapper productMapper;
+    SecurityUtils securityUtils;
 
+    @Transactional
     public ProductResponse createProduct(ProductCreationRequest productCreationRequest) {
         boolean nameExists = productRepository
                 .findByNameIgnoreCase(productCreationRequest.getName())
                 .isPresent();
 
         if (nameExists) {
-            throw new ConflictException(
-                    "Sản phẩm với tên '" + productCreationRequest.getName()
-                            + "' đã tồn tại.");
+            throw new ConflictException("Product name '" + productCreationRequest.getName() + "' already exists");
         }
 
         Product product = productMapper.toProduct(productCreationRequest);
-
-        if (product.getStock() == null)
+        if (product.getStock() == null) {
             product.setStock(0);
+        }
+
+        AppUser currentUser = securityUtils.getCurrentUser();
+        product.setOwner(currentUser);
+
         return productMapper.toResponse(productRepository.save(product));
     }
-
-    // public PageResponse<ProductResponse> getAllProduct(int page, int size){
-    // Pageable pageable = PageRequest.of(page, size);
-    // Page<Product> productPage = productRepository.findAll(pageable);
-    // Page<ProductResponse> productResponsePage =
-    // productPage.map(productMapper::toResponse);
-    // return PageResponse.of(productResponsePage);
-    // }
 
     public PageResponse<ProductResponse> getAllProduct(
             String keyword,
@@ -65,10 +64,27 @@ public class ProductService {
             int size,
             String sort) {
 
+        int cappedSize = Math.min(Math.max(size, 1), 100);
         Sort sorting = SortUtils.buildSort(sort, "id");
-        Pageable pageable = PageRequest.of(page, size, sorting);
+        Pageable pageable = PageRequest.of(page, cappedSize, sorting);
 
         Specification<Product> specification = Specification.unrestricted();
+
+        // Role-based visibility scoping
+        try {
+            AppUser currentUser = securityUtils.getCurrentUser();
+            if (currentUser.getRole() == Role.USER) {
+                specification = specification.and((root, query, cb) -> cb.equal(root.get("status"), ProductStatus.ACTIVE));
+            } else if (currentUser.getRole() == Role.PRODUCT_OWNER) {
+                specification = specification.and((root, query, cb) -> cb.or(
+                        cb.equal(root.get("status"), ProductStatus.ACTIVE),
+                        cb.equal(root.get("owner").get("id"), currentUser.getId())
+                ));
+            }
+        } catch (Exception e) {
+            // Unauthenticated callers see ACTIVE products only
+            specification = specification.and((root, query, cb) -> cb.equal(root.get("status"), ProductStatus.ACTIVE));
+        }
 
         if (keyword != null && !keyword.isBlank()) {
             specification = specification.and(
@@ -90,30 +106,44 @@ public class ProductService {
 
     public ProductResponse getProductById(int id) {
         Product product = productRepository.findById(id)
-                .orElseThrow(() -> ResourceNotFoundException.of("Sản phẩm", "id", id));
+                .orElseThrow(() -> ResourceNotFoundException.of("Product", "id", id));
 
         return productMapper.toResponse(product);
     }
 
+    @Transactional
     public ProductResponse updateProduct(int id, ProductUpdateRequest productUpdateRequest) {
         Product product = productRepository.findById(id)
-                .orElseThrow(() -> ResourceNotFoundException.of("Sản phẩm", "id", id));
+                .orElseThrow(() -> ResourceNotFoundException.of("Product", "id", id));
+
+        verifyProductOwnership(product);
 
         productMapper.updateProduct(productUpdateRequest, product);
-        return productMapper.toResponse(
-                productRepository.save(product));
-
+        return productMapper.toResponse(productRepository.save(product));
     }
 
+    @Transactional
     public void deleteProduct(int id) {
         Product product = productRepository.findById(id)
-                .orElseThrow(() -> ResourceNotFoundException.of("Sản phẩm", "id", id));
+                .orElseThrow(() -> ResourceNotFoundException.of("Product", "id", id));
+
+        verifyProductOwnership(product);
 
         if (!product.getOrderItems().isEmpty()) {
-            throw new ConflictException("Không thể xóa sản phẩm đã có trong đơn hàng !");
+            throw new ConflictException("Cannot delete product already associated with orders");
         }
 
         productRepository.delete(product);
     }
 
+    private void verifyProductOwnership(Product product) {
+        AppUser currentUser = securityUtils.getCurrentUser();
+        if (currentUser.getRole() == Role.ADMIN) {
+            return;
+        }
+        if (currentUser.getRole() == Role.PRODUCT_OWNER && product.getOwner() != null && product.getOwner().getId().equals(currentUser.getId())) {
+            return;
+        }
+        throw new AccessDeniedException("Forbidden: Caller does not own product " + product.getId());
+    }
 }

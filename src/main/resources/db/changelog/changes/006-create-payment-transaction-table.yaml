@@ -1,0 +1,147 @@
+databaseChangeLog:
+
+  - changeSet:
+      id: 011-1-create-payment-transaction-table
+      author: oms
+      comment: Tao bang payment_transaction de tich hop VNPay
+      changes:
+        - createTable:
+            tableName: payment_transaction
+            columns:
+              - column:
+                  name: id
+                  type: BIGINT
+                  autoIncrement: true
+                  constraints:
+                    primaryKey: true
+                    primaryKeyName: pk_payment_transaction
+                    nullable: false
+              - column:
+                  name: order_id
+                  type: BIGINT
+                  constraints:
+                    nullable: false
+              - column:
+                  name: vnp_txn_ref
+                  type: VARCHAR(100)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: vnp_transaction_no
+                  type: VARCHAR(50)
+              - column:
+                  name: amount
+                  type: DECIMAL(15,2)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: bank_code
+                  type: VARCHAR(20)
+              - column:
+                  name: payment_method
+                  type: VARCHAR(20)
+                  defaultValue: VNPAY
+                  constraints:
+                    nullable: false
+              - column:
+                  name: status
+                  type: VARCHAR(20)
+                  defaultValue: PENDING
+                  constraints:
+                    nullable: false
+              - column:
+                  name: response_code
+                  type: VARCHAR(10)
+              - column:
+                  name: secure_hash
+                  type: VARCHAR(512)
+              - column:
+                  name: pay_date
+                  type: VARCHAR(20)
+              - column:
+                  name: ip_address
+                  type: VARCHAR(45)
+              - column:
+                  name: order_info
+                  type: VARCHAR(255)
+              - column:
+                  name: is_ipn_confirmed
+                  type: BOOLEAN
+                  defaultValueBoolean: false
+                  constraints:
+                    nullable: false
+              - column:
+                  name: created_at
+                  type: TIMESTAMP
+                  defaultValueComputed: CURRENT_TIMESTAMP
+                  constraints:
+                    nullable: false
+              - column:
+                  name: updated_at
+                  type: TIMESTAMP
+                  defaultValueComputed: CURRENT_TIMESTAMP
+                  constraints:
+                    nullable: false
+
+
+  - changeSet:
+      id: 011-2-add-unique-vnp-txn-ref
+      author: oms
+      comment: Moi vnp_TxnRef gui cho VNPay phai la duy nhat
+      changes:
+        - addUniqueConstraint:
+            tableName: payment_transaction
+            columnNames: vnp_txn_ref
+            constraintName: uk_payment_txn_ref
+
+
+  - changeSet:
+      id: 011-3-add-fk-payment-order
+      author: oms
+      comment: payment_transaction.order_id tham chieu orders.id
+      changes:
+        - addForeignKeyConstraint:
+            baseTableName: payment_transaction
+            baseColumnNames: order_id
+            constraintName: fk_payment_order
+            referencedTableName: orders
+            referencedColumnNames: id
+            onDelete: RESTRICT
+            onUpdate: RESTRICT
+
+
+  - changeSet:
+      id: 011-4-add-indexes-payment-transaction
+      author: oms
+      changes:
+        - createIndex:
+            tableName: payment_transaction
+            indexName: idx_payment_order_id
+            columns:
+              - column:
+                  name: order_id
+        - createIndex:
+            tableName: payment_transaction
+            indexName: idx_payment_status
+            columns:
+              - column:
+                  name: status
+
+
+  - changeSet:
+      id: 011-5-add-payment-status-to-orders
+      author: oms
+      comment: >
+        Cot cache trang thai thanh toan tren orders de tra cuu nhanh khong can join;
+        nguon su that van la bang payment_transaction (is_ipn_confirmed + status).
+      changes:
+        - addColumn:
+            tableName: orders
+            columns:
+              - column:
+                  name: payment_status
+                  type: VARCHAR(20)
+                  defaultValue: UNPAID
+                  afterColumn: status
+                  constraints:
+                    nullable: false

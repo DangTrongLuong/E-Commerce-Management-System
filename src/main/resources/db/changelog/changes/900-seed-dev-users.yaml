@@ -1,0 +1,50 @@
+databaseChangeLog:
+  - changeSet:
+      id: 900-seed-dev-users
+      author: Antigravity
+      context: dev
+      changes:
+        - insert:
+            tableName: app_user
+            columns:
+              - column: { name: id, valueNumeric: 1 }
+              - column: { name: email, value: "admin@example.com" }
+              - column: { name: password_hash, value: "$2a$10$e8W/Xb7YV1kG4K8yP1l3.OQvR5wU2kQ6P9tY1V1Z1Y1Z1Y1Z1Y1Z1" }
+              - column: { name: role, value: "ADMIN" }
+              - column: { name: status, value: "ACTIVE" }
+
+        - insert:
+            tableName: app_user
+            columns:
+              - column: { name: id, valueNumeric: 2 }
+              - column: { name: email, value: "po1@example.com" }
+              - column: { name: password_hash, value: "$2a$10$e8W/Xb7YV1kG4K8yP1l3.OQvR5wU2kQ6P9tY1V1Z1Y1Z1Y1Z1Y1Z1" }
+              - column: { name: role, value: "PRODUCT_OWNER" }
+              - column: { name: status, value: "ACTIVE" }
+
+        - insert:
+            tableName: app_user
+            columns:
+              - column: { name: id, valueNumeric: 3 }
+              - column: { name: email, value: "po2@example.com" }
+              - column: { name: password_hash, value: "$2a$10$e8W/Xb7YV1kG4K8yP1l3.OQvR5wU2kQ6P9tY1V1Z1Y1Z1Y1Z1Y1Z1" }
+              - column: { name: role, value: "PRODUCT_OWNER" }
+              - column: { name: status, value: "ACTIVE" }
+
+        - insert:
+            tableName: app_user
+            columns:
+              - column: { name: id, valueNumeric: 4 }
+              - column: { name: email, value: "user1@example.com" }
+              - column: { name: password_hash, value: "$2a$10$e8W/Xb7YV1kG4K8yP1l3.OQvR5wU2kQ6P9tY1V1Z1Y1Z1Y1Z1Y1Z1" }
+              - column: { name: role, value: "USER" }
+              - column: { name: status, value: "ACTIVE" }
+
+        - insert:
+            tableName: app_user
+            columns:
+              - column: { name: id, valueNumeric: 5 }
+              - column: { name: email, value: "user2@example.com" }
+              - column: { name: password_hash, value: "$2a$10$e8W/Xb7YV1kG4K8yP1l3.OQvR5wU2kQ6P9tY1V1Z1Y1Z1Y1Z1Y1Z1" }
+              - column: { name: role, value: "USER" }
+              - column: { name: status, value: "ACTIVE" }

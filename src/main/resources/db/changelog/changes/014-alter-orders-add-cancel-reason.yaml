@@ -1,0 +1,13 @@
+databaseChangeLog:
+  - changeSet:
+      id: 014-alter-orders-add-cancel-reason
+      author: Antigravity
+      changes:
+        - addColumn:
+            tableName: orders
+            columns:
+              - column:
+                  name: cancel_reason
+                  type: VARCHAR(500)
+                  constraints:
+                    nullable: true

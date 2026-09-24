@@ -1,0 +1,14 @@
+databaseChangeLog:
+  - changeSet:
+      id: 016-alter-app-user-add-token-version
+      author: Antigravity
+      changes:
+        - addColumn:
+            tableName: app_user
+            columns:
+              - column:
+                  name: token_version
+                  type: INT
+                  defaultValueNumeric: 1
+                  constraints:
+                    nullable: false

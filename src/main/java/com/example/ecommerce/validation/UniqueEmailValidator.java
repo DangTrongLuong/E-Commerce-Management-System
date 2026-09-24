@@ -1,7 +1,7 @@
 package com.example.ecommerce.validation;
 
+import com.example.ecommerce.repository.AppUserRepository;
 import com.example.ecommerce.repository.CustomerRepository;
-import com.example.ecommerce.repository.UserRepository;
 import jakarta.validation.ConstraintValidator;
 import jakarta.validation.ConstraintValidatorContext;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -14,7 +14,7 @@ public class UniqueEmailValidator implements ConstraintValidator<UniqueEmail, St
     private CustomerRepository customerRepository;
 
     @Autowired
-    private UserRepository userRepository;
+    private AppUserRepository userRepository;
 
     private static final String EMAIL_REGEX = "^[a-zA-Z0-9_!#$%&'*+/=?`{|}~^.-]+@[a-zA-Z0-9.-]+$";
 
@@ -26,7 +26,7 @@ public class UniqueEmailValidator implements ConstraintValidator<UniqueEmail, St
 
         if (!isCorrectFormat) {
             context.disableDefaultConstraintViolation();
-            context.buildConstraintViolationWithTemplate("Email không đúng định dạng! Vui lòng thử lại !")
+            context.buildConstraintViolationWithTemplate("Email format is invalid")
                     .addConstraintViolation();
             return false;
         }

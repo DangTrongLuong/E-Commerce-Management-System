@@ -1,0 +1,125 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<jasperReport xmlns="http://jasperreports.sourceforge.net/jasperreports"
+              xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+              xsi:schemaLocation="http://jasperreports.sourceforge.net/jasperreports http://jasperreports.sourceforge.net/xsd/jasperreport.xsd"
+              name="invoice"
+              pageWidth="595" pageHeight="842" columnWidth="555"
+              leftMargin="20" rightMargin="20" topMargin="20" bottomMargin="20"
+              uuid="b0a88019-2182-45e0-911f-829d8e785501">
+
+    <parameter name="orderId" class="java.lang.String"/>
+    <parameter name="customerName" class="java.lang.String"/>
+    <parameter name="totalAmount" class="java.lang.String"/>
+    <parameter name="status" class="java.lang.String"/>
+    <parameter name="createdDate" class="java.lang.String"/>
+
+    <field name="productName" class="java.lang.String"/>
+    <field name="quantity" class="java.lang.Integer"/>
+    <field name="unitPrice" class="java.lang.String"/>
+    <field name="subtotal" class="java.lang.String"/>
+
+    <title>
+        <band height="60" splitType="Stretch">
+            <staticText>
+                <reportElement x="0" y="10" width="555" height="30" uuid="e6d63c5d-0000-4000-8000-000000000001"/>
+                <textElement textAlignment="Center" verticalAlignment="Middle">
+                    <font fontName="DejaVu Sans" size="18" isBold="true"/>
+                </textElement>
+                <text><![CDATA[HOA DON MUA HANG (JASPERREPORTS)]]></text>
+            </staticText>
+        </band>
+    </title>
+
+    <pageHeader>
+        <band height="80" splitType="Stretch">
+            <textField>
+                <reportElement x="0" y="10" width="280" height="20" uuid="a1111111-0000-4000-8000-000000000001"/>
+                <textElement><font fontName="DejaVu Sans" size="10" isBold="true"/></textElement>
+                <textFieldExpression><![CDATA["Ma don hang: #" + $P{orderId}]]></textFieldExpression>
+            </textField>
+            <textField>
+                <reportElement x="280" y="10" width="275" height="20" uuid="a2222222-0000-4000-8000-000000000002"/>
+                <textElement textAlignment="Right"><font fontName="DejaVu Sans" size="10"/></textElement>
+                <textFieldExpression><![CDATA["Ngay tao: " + $P{createdDate}]]></textFieldExpression>
+            </textField>
+            <textField>
+                <reportElement x="0" y="35" width="280" height="20" uuid="a3333333-0000-4000-8000-000000000003"/>
+                <textElement><font fontName="DejaVu Sans" size="10"/></textElement>
+                <textFieldExpression><![CDATA["Khach hang: " + $P{customerName}]]></textFieldExpression>
+            </textField>
+            <textField>
+                <reportElement x="280" y="35" width="275" height="20" uuid="a4444444-0000-4000-8000-000000000004"/>
+                <textElement textAlignment="Right"><font fontName="DejaVu Sans" size="10"/></textElement>
+                <textFieldExpression><![CDATA["Trang thai: " + $P{status}]]></textFieldExpression>
+            </textField>
+        </band>
+    </pageHeader>
+
+    <columnHeader>
+        <band height="25" splitType="Stretch">
+            <staticText>
+                <reportElement x="0" y="0" width="200" height="20" uuid="b1111111-0000-4000-8000-000000000001"/>
+                <textElement verticalAlignment="Middle"><font fontName="DejaVu Sans" size="10" isBold="true"/></textElement>
+                <text><![CDATA[Ten San Pham]]></text>
+            </staticText>
+            <staticText>
+                <reportElement x="200" y="0" width="80" height="20" uuid="b2222222-0000-4000-8000-000000000002"/>
+                <textElement textAlignment="Center" verticalAlignment="Middle"><font fontName="DejaVu Sans" size="10" isBold="true"/></textElement>
+                <text><![CDATA[So Luong]]></text>
+            </staticText>
+            <staticText>
+                <reportElement x="280" y="0" width="130" height="20" uuid="b3333333-0000-4000-8000-000000000003"/>
+                <textElement textAlignment="Right" verticalAlignment="Middle"><font fontName="DejaVu Sans" size="10" isBold="true"/></textElement>
+                <text><![CDATA[Don Gia]]></text>
+            </staticText>
+            <staticText>
+                <reportElement x="410" y="0" width="145" height="20" uuid="b4444444-0000-4000-8000-000000000004"/>
+                <textElement textAlignment="Right" verticalAlignment="Middle"><font fontName="DejaVu Sans" size="10" isBold="true"/></textElement>
+                <text><![CDATA[Thanh Tien]]></text>
+            </staticText>
+        </band>
+    </columnHeader>
+
+    <detail>
+        <band height="20" splitType="Stretch">
+            <textField>
+                <reportElement x="0" y="0" width="200" height="18" uuid="c1111111-0000-4000-8000-000000000001"/>
+                <textElement verticalAlignment="Middle"><font fontName="DejaVu Sans" size="9"/></textElement>
+                <textFieldExpression><![CDATA[$F{productName}]]></textFieldExpression>
+            </textField>
+            <textField>
+                <reportElement x="200" y="0" width="80" height="18" uuid="c2222222-0000-4000-8000-000000000002"/>
+                <textElement textAlignment="Center" verticalAlignment="Middle"><font fontName="DejaVu Sans" size="9"/></textElement>
+                <textFieldExpression><![CDATA[$F{quantity}]]></textFieldExpression>
+            </textField>
+            <textField>
+                <reportElement x="280" y="0" width="130" height="18" uuid="c3333333-0000-4000-8000-000000000003"/>
+                <textElement textAlignment="Right" verticalAlignment="Middle"><font fontName="DejaVu Sans" size="9"/></textElement>
+                <textFieldExpression><![CDATA[$F{unitPrice}]]></textFieldExpression>
+            </textField>
+            <textField>
+                <reportElement x="410" y="0" width="145" height="18" uuid="c4444444-0000-4000-8000-000000000004"/>
+                <textElement textAlignment="Right" verticalAlignment="Middle"><font fontName="DejaVu Sans" size="9"/></textElement>
+                <textFieldExpression><![CDATA[$F{subtotal}]]></textFieldExpression>
+            </textField>
+        </band>
+    </detail>
+
+    <summary>
+        <band height="50" splitType="Stretch">
+            <line>
+                <reportElement x="0" y="5" width="555" height="1" uuid="d0000000-0000-4000-8000-000000000000"/>
+            </line>
+            <staticText>
+                <reportElement x="0" y="15" width="280" height="20" uuid="d1111111-0000-4000-8000-000000000001"/>
+                <textElement verticalAlignment="Middle"><font fontName="DejaVu Sans" size="11" isBold="true"/></textElement>
+                <text><![CDATA[TONG CONG THANH TOAN:]]></text>
+            </staticText>
+            <textField>
+                <reportElement x="280" y="15" width="275" height="20" uuid="d2222222-0000-4000-8000-000000000002"/>
+                <textElement textAlignment="Right" verticalAlignment="Middle"><font fontName="DejaVu Sans" size="12" isBold="true"/></textElement>
+                <textFieldExpression><![CDATA[$P{totalAmount} + " VNĐ"]]></textFieldExpression>
+            </textField>
+        </band>
+    </summary>
+</jasperReport>

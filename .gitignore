@@ -34,3 +34,14 @@ bin/
 
 .env
 
+*.docx
+
+# Bỏ qua tất cả file Markdown (.md)
+*.md
+
+*.txt
+
+# Ngoại trừ file README.md (không phân biệt hoa thường)
+!README.md
+!readme.md
+!Readme.md

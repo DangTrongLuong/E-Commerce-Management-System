@@ -19,6 +19,8 @@ public class ProductResponse {
     private BigDecimal price;
     private Integer stock;
     private ProductStatus status;
+    private Long ownerId;
+    private String ownerName;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
 

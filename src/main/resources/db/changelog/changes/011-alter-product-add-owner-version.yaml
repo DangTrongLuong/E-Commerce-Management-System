@@ -1,0 +1,29 @@
+databaseChangeLog:
+  - changeSet:
+      id: 011-alter-product-add-owner
+      author: Antigravity
+      changes:
+        - addColumn:
+            tableName: products
+            columns:
+              - column:
+                  name: owner_id
+                  type: BIGINT
+                  constraints:
+                    nullable: true
+
+        - addForeignKeyConstraint:
+            baseTableName: products
+            baseColumnNames: owner_id
+            constraintName: fk_products_owner
+            referencedTableName: app_user
+            referencedColumnNames: id
+            onDelete: SET NULL
+            onUpdate: CASCADE
+
+        - createIndex:
+            indexName: idx_product_owner
+            tableName: products
+            columns:
+              - column:
+                  name: owner_id

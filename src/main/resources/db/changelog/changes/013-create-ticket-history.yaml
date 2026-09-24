@@ -1,0 +1,75 @@
+databaseChangeLog:
+  - changeSet:
+      id: 013-create-ticket-history
+      author: Antigravity
+      changes:
+        - createTable:
+            tableName: ticket_history
+            columns:
+              - column:
+                  name: id
+                  type: BIGINT
+                  autoIncrement: true
+                  constraints:
+                    primaryKey: true
+                    primaryKeyName: pk_ticket_history
+                    nullable: false
+              - column:
+                  name: ticket_id
+                  type: BIGINT
+                  constraints:
+                    nullable: false
+              - column:
+                  name: action
+                  type: VARCHAR(30)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: from_status
+                  type: VARCHAR(30)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: to_status
+                  type: VARCHAR(30)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: actor_id
+                  type: BIGINT
+                  constraints:
+                    nullable: true
+              - column:
+                  name: comment
+                  type: VARCHAR(500)
+              - column:
+                  name: created_at
+                  type: TIMESTAMP
+                  defaultValueComputed: CURRENT_TIMESTAMP
+                  constraints:
+                    nullable: false
+
+        - addForeignKeyConstraint:
+            baseTableName: ticket_history
+            baseColumnNames: ticket_id
+            constraintName: fk_history_ticket
+            referencedTableName: purchase_ticket
+            referencedColumnNames: id
+            onDelete: CASCADE
+            onUpdate: CASCADE
+
+        - addForeignKeyConstraint:
+            baseTableName: ticket_history
+            baseColumnNames: actor_id
+            constraintName: fk_history_actor
+            referencedTableName: app_user
+            referencedColumnNames: id
+            onDelete: SET NULL
+            onUpdate: CASCADE
+
+        - createIndex:
+            indexName: idx_history_ticket
+            tableName: ticket_history
+            columns:
+              - column:
+                  name: ticket_id

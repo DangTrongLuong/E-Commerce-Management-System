@@ -39,9 +39,13 @@ public class Product {
     @Builder.Default
     private ProductStatus status = ProductStatus.ACTIVE;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "owner_id")
+    private AppUser owner;
+
     @Version
     @Builder.Default
-    private int version = 0;
+    private Long version = 0L;
 
     @Column(nullable = false, name = "created_at")
     private LocalDateTime createdAt;
