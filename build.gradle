@@ -95,7 +95,8 @@ dependencies {
 	implementation 'org.docx4j:docx4j-JAXB-ReferenceImpl:11.4.11'
 
 	// --- JasperReports ---
-	implementation 'net.sf.jasperreports:jasperreports:6.21.3'
+	implementation 'net.sf.jasperreports:jasperreports:7.0.1'
+	implementation 'net.sf.jasperreports:jasperreports-pdf:7.0.1'
 }
 
 tasks.named('test') {

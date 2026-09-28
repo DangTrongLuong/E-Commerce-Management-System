@@ -2,6 +2,8 @@ package com.example.ecommerce.service;
 
 import com.example.ecommerce.entity.Order;
 import com.example.ecommerce.entity.OrderItem;
+import com.example.ecommerce.enums.OrderStatus;
+import com.example.ecommerce.exception.BadRequestExeption;
 import com.example.ecommerce.exception.ResourceNotFoundException;
 import com.example.ecommerce.repository.OrderRepository;
 import lombok.AllArgsConstructor;
@@ -47,14 +49,20 @@ public class JasperReportService {
         Order order = orderRepository.findById(orderId)
                 .orElseThrow(() -> new ResourceNotFoundException("Order not found with id: " + orderId));
 
+        // Check order status: invoice can only be generated for CONFIRMED, PROCESSING, COMPLETED
+        if (order.getStatus() == OrderStatus.PENDING || order.getStatus() == OrderStatus.CANCELLED) {
+            throw new BadRequestExeption("Hóa đơn chỉ khả dụng cho đơn hàng đã được phê duyệt (CONFIRMED, PROCESSING, COMPLETED). Trạng thái hiện tại: " + order.getStatus());
+        }
+
         try {
             // 1. Prepare Parameters
             Map<String, Object> parameters = new HashMap<>();
             parameters.put("orderId", String.valueOf(order.getId()));
             parameters.put("customerName", order.getCustomer() != null ? order.getCustomer().getName() : "Khách hàng");
+            parameters.put("customerPhone", (order.getCustomer() != null && order.getCustomer().getPhone() != null) ? order.getCustomer().getPhone() : "N/A");
             parameters.put("status", order.getStatus() != null ? order.getStatus().name() : "N/A");
             parameters.put("createdDate", order.getCreatedAt() != null ? order.getCreatedAt().format(DATE_FORMATTER) : "N/A");
-            parameters.put("totalAmount", formatCurrency(order.getTotalAmount()));
+            parameters.put("totalAmount", formatCurrency(order.getTotalAmount()) + " VNĐ");
 
             // 2. Prepare Data Source (Item List)
             List<JasperItemDto> itemsList = new ArrayList<>();

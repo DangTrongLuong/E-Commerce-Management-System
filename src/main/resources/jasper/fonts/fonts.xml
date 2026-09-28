@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<fontFamilies>
+    <fontFamily name="DejaVu Sans">
+        <normal>C:/Windows/Fonts/arial.ttf</normal>
+        <bold>C:/Windows/Fonts/arialbd.ttf</bold>
+        <italic>C:/Windows/Fonts/ariali.ttf</italic>
+        <boldItalic>C:/Windows/Fonts/arialbi.ttf</boldItalic>
+        <pdfEncoding>Identity-H</pdfEncoding>
+        <pdfEmbedded>true</pdfEmbedded>
+    </fontFamily>
+    <fontFamily name="DejaVu Sans Condensed">
+        <normal>C:/Windows/Fonts/arial.ttf</normal>
+        <bold>C:/Windows/Fonts/arialbd.ttf</bold>
+        <italic>C:/Windows/Fonts/ariali.ttf</italic>
+        <boldItalic>C:/Windows/Fonts/arialbi.ttf</boldItalic>
+        <pdfEncoding>Identity-H</pdfEncoding>
+        <pdfEmbedded>true</pdfEmbedded>
+    </fontFamily>
+    <fontFamily name="Arial">
+        <normal>C:/Windows/Fonts/arial.ttf</normal>
+        <bold>C:/Windows/Fonts/arialbd.ttf</bold>
+        <italic>C:/Windows/Fonts/ariali.ttf</italic>
+        <boldItalic>C:/Windows/Fonts/arialbi.ttf</boldItalic>
+        <pdfEncoding>Identity-H</pdfEncoding>
+        <pdfEmbedded>true</pdfEmbedded>
+    </fontFamily>
+</fontFamilies>
