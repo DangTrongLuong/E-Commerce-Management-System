@@ -1,13 +1,42 @@
 package com.example.ecommerce.integration;
 
-import com.example.ecommerce.dto.request.*;
-import com.example.ecommerce.dto.response.*;
-import com.example.ecommerce.entity.*;
-import com.example.ecommerce.enums.*;
-import com.example.ecommerce.exception.*;
-import com.example.ecommerce.repository.*;
-import com.example.ecommerce.scheduler.TicketSlaScheduler;
-import com.example.ecommerce.service.*;
+import com.example.ecommerce.auth.dto.LoginRequest;
+import com.example.ecommerce.auth.dto.RegisterRequest;
+import com.example.ecommerce.auth.service.AuthService;
+import com.example.ecommerce.common.exception.AccountLockedException;
+import com.example.ecommerce.common.exception.BadRequestExeption;
+import com.example.ecommerce.common.exception.DuplicateResourceException;
+import com.example.ecommerce.common.exception.SelfApprovalNotAllowedException;
+import com.example.ecommerce.customer.entity.Customer;
+import com.example.ecommerce.customer.enums.CustomerStatus;
+import com.example.ecommerce.customer.repository.CustomerRepository;
+import com.example.ecommerce.notification.repository.NotificationRepository;
+import com.example.ecommerce.order.dto.OrderCreationRequest;
+import com.example.ecommerce.order.dto.OrderItemRequest;
+import com.example.ecommerce.order.dto.OrderResponse;
+import com.example.ecommerce.order.entity.Order;
+import com.example.ecommerce.order.enums.OrderStatus;
+import com.example.ecommerce.order.repository.OrderRepository;
+import com.example.ecommerce.order.service.OrderService;
+import com.example.ecommerce.product.entity.Product;
+import com.example.ecommerce.product.enums.ProductStatus;
+import com.example.ecommerce.product.repository.ProductRepository;
+import com.example.ecommerce.ticket.dto.TicketActionRequest;
+import com.example.ecommerce.ticket.dto.TicketResponse;
+import com.example.ecommerce.ticket.entity.PurchaseTicket;
+import com.example.ecommerce.ticket.enums.TicketStatus;
+import com.example.ecommerce.ticket.repository.PurchaseTicketRepository;
+import com.example.ecommerce.ticket.repository.TicketHistoryRepository;
+import com.example.ecommerce.ticket.service.TicketService;
+import com.example.ecommerce.ticket.service.TicketSlaExecutor;
+import com.example.ecommerce.user.dto.UserResponse;
+import com.example.ecommerce.user.entity.AppUser;
+import com.example.ecommerce.user.enums.Role;
+import com.example.ecommerce.user.enums.UserStatus;
+import com.example.ecommerce.user.repository.AppUserRepository;
+import com.example.ecommerce.user.service.AdminUserService;
+
+import com.example.ecommerce.ticket.service.TicketSlaScheduler;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -40,6 +69,7 @@ class WorkflowIntegrationTest {
     @Autowired private OrderService orderService;
     @Autowired private TicketService ticketService;
     @Autowired private TicketSlaScheduler ticketSlaScheduler;
+    @org.springframework.boot.test.mock.mockito.MockBean private com.example.ecommerce.notification.service.EmailService emailService;
 
     // Repositories for setup & teardown
     @Autowired private AppUserRepository userRepository;

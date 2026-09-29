@@ -1,29 +1,31 @@
 package com.example.ecommerce.service;
 
-import com.example.ecommerce.dto.request.OrderCreationRequest;
-import com.example.ecommerce.dto.request.OrderItemRequest;
-import com.example.ecommerce.dto.request.OrderStatusUpdateRequest;
-import com.example.ecommerce.dto.response.OrderResponse;
-import com.example.ecommerce.entity.AppUser;
-import com.example.ecommerce.entity.Customer;
-import com.example.ecommerce.entity.Order;
-import com.example.ecommerce.entity.Product;
-import com.example.ecommerce.entity.PurchaseTicket;
-import com.example.ecommerce.enums.OrderStatus;
-import com.example.ecommerce.enums.ProductStatus;
-import com.example.ecommerce.enums.Role;
-import com.example.ecommerce.enums.UserStatus;
-import com.example.ecommerce.exception.ConflictException;
-import com.example.ecommerce.exception.InsufficientStockException;
-import com.example.ecommerce.exception.InvalidOrderStatusException;
-import com.example.ecommerce.exception.ResourceNotFoundException;
-import com.example.ecommerce.mapper.OrderMapper;
-import com.example.ecommerce.repository.CustomerRepository;
-import com.example.ecommerce.repository.OrderRepository;
-import com.example.ecommerce.repository.ProductRepository;
-import com.example.ecommerce.repository.PurchaseTicketRepository;
-import com.example.ecommerce.repository.TicketHistoryRepository;
-import com.example.ecommerce.util.SecurityUtils;
+import com.example.ecommerce.order.service.OrderService;
+
+import com.example.ecommerce.order.dto.OrderCreationRequest;
+import com.example.ecommerce.order.dto.OrderItemRequest;
+import com.example.ecommerce.order.dto.OrderStatusUpdateRequest;
+import com.example.ecommerce.order.dto.OrderResponse;
+import com.example.ecommerce.user.entity.AppUser;
+import com.example.ecommerce.customer.entity.Customer;
+import com.example.ecommerce.order.entity.Order;
+import com.example.ecommerce.product.entity.Product;
+import com.example.ecommerce.ticket.entity.PurchaseTicket;
+import com.example.ecommerce.order.enums.OrderStatus;
+import com.example.ecommerce.product.enums.ProductStatus;
+import com.example.ecommerce.user.enums.Role;
+import com.example.ecommerce.user.enums.UserStatus;
+import com.example.ecommerce.common.exception.ConflictException;
+import com.example.ecommerce.common.exception.InsufficientStockException;
+import com.example.ecommerce.common.exception.InvalidOrderStatusException;
+import com.example.ecommerce.common.exception.ResourceNotFoundException;
+import com.example.ecommerce.order.mapper.OrderMapper;
+import com.example.ecommerce.customer.repository.CustomerRepository;
+import com.example.ecommerce.order.repository.OrderRepository;
+import com.example.ecommerce.product.repository.ProductRepository;
+import com.example.ecommerce.ticket.repository.PurchaseTicketRepository;
+import com.example.ecommerce.ticket.repository.TicketHistoryRepository;
+import com.example.ecommerce.common.util.SecurityUtils;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -66,6 +68,12 @@ class OrderServiceTest {
 
     @Mock
     private SecurityUtils securityUtils;
+
+    @Mock
+    private com.example.ecommerce.order.service.PdfInvoiceService pdfInvoiceService;
+
+    @Mock
+    private com.example.ecommerce.notification.service.EmailService emailService;
 
     @InjectMocks
     private OrderService orderService;

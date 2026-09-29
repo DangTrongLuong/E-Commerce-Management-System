@@ -1,16 +1,16 @@
 package com.example.ecommerce.integration;
 
-import com.example.ecommerce.dto.request.OrderCreationRequest;
-import com.example.ecommerce.dto.request.OrderItemRequest;
-import com.example.ecommerce.dto.response.OrderResponse;
-import com.example.ecommerce.entity.Customer;
-import com.example.ecommerce.entity.Product;
-import com.example.ecommerce.enums.OrderStatus;
-import com.example.ecommerce.enums.ProductStatus;
-import com.example.ecommerce.repository.CustomerRepository;
-import com.example.ecommerce.repository.OrderRepository;
-import com.example.ecommerce.repository.ProductRepository;
-import com.example.ecommerce.service.OrderService;
+import com.example.ecommerce.order.dto.OrderCreationRequest;
+import com.example.ecommerce.order.dto.OrderItemRequest;
+import com.example.ecommerce.order.dto.OrderResponse;
+import com.example.ecommerce.customer.entity.Customer;
+import com.example.ecommerce.product.entity.Product;
+import com.example.ecommerce.order.enums.OrderStatus;
+import com.example.ecommerce.product.enums.ProductStatus;
+import com.example.ecommerce.customer.repository.CustomerRepository;
+import com.example.ecommerce.order.repository.OrderRepository;
+import com.example.ecommerce.product.repository.ProductRepository;
+import com.example.ecommerce.order.service.OrderService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -47,6 +47,9 @@ class OrderIntegrationTest {
 
     @Autowired
     private OrderService orderService;
+
+    @org.springframework.boot.test.mock.mockito.MockBean
+    private com.example.ecommerce.notification.service.EmailService emailService;
 
     @Autowired
     private CustomerRepository customerRepository;

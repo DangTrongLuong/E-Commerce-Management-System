@@ -1,13 +1,13 @@
 package com.example.ecommerce.controller;
 
-import com.example.ecommerce.dto.request.OrderCreationRequest;
-import com.example.ecommerce.dto.request.OrderItemRequest;
-import com.example.ecommerce.dto.request.OrderStatusUpdateRequest;
-import com.example.ecommerce.dto.response.OrderResponse;
-import com.example.ecommerce.enums.OrderStatus;
-import com.example.ecommerce.exception.ConflictException;
-import com.example.ecommerce.exception.ResourceNotFoundException;
-import com.example.ecommerce.service.OrderService;
+import com.example.ecommerce.order.dto.OrderCreationRequest;
+import com.example.ecommerce.order.dto.OrderItemRequest;
+import com.example.ecommerce.order.dto.OrderStatusUpdateRequest;
+import com.example.ecommerce.order.dto.OrderResponse;
+import com.example.ecommerce.order.enums.OrderStatus;
+import com.example.ecommerce.common.exception.ConflictException;
+import com.example.ecommerce.common.exception.ResourceNotFoundException;
+import com.example.ecommerce.order.service.OrderService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -40,6 +40,9 @@ class OrderControllerTest {
 
     @MockBean
     private OrderService orderService;
+
+    @MockBean
+    private com.example.ecommerce.notification.service.EmailService emailService;
 
     @Test
     @WithMockUser(roles = "USER")

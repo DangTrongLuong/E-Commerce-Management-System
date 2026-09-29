@@ -1,7 +1,7 @@
 package com.example.ecommerce.controller;
 
-import com.example.ecommerce.dto.response.ProductImportResultResponse;
-import com.example.ecommerce.service.ProductBatchService;
+import com.example.ecommerce.product.dto.ProductImportResultResponse;
+import com.example.ecommerce.product.service.ProductBatchService;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -27,6 +27,9 @@ class ProductImportControllerTest {
 
     @MockBean
     private ProductBatchService productBatchService;
+
+    @MockBean
+    private com.example.ecommerce.notification.service.EmailService emailService;
 
     @Test
     @WithMockUser(roles = "ADMIN")
