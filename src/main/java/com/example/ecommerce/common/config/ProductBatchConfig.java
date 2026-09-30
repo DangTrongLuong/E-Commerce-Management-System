@@ -4,6 +4,10 @@ import com.example.ecommerce.product.dto.ProductImportRequest;
 import com.example.ecommerce.product.entity.Product;
 import com.example.ecommerce.product.enums.ProductStatus;
 import com.example.ecommerce.product.repository.ProductRepository;
+
+import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.core.task.TaskExecutor;
+import jakarta.persistence.EntityManager;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.csv.CSVFormat;
@@ -28,10 +32,7 @@ import java.io.FileReader;
 import java.io.Reader;
 import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
-import java.util.HashSet;
 import java.util.Iterator;
-import java.util.Set;
-
 
 @Configuration
 @RequiredArgsConstructor
@@ -69,28 +70,34 @@ public class ProductBatchConfig {
             }
 
             @Override
-            public ProductImportRequest read() {
+            public synchronized ProductImportRequest read() {
                 init();
                 if (iterator != null && iterator.hasNext()) {
                     CSVRecord record = iterator.next();
-                    String name = record.isMapped("name") ? record.get("name") : (record.size() > 0 ? record.get(0) : null);
-                    String priceStr = record.isMapped("price") ? record.get("price") : (record.size() > 1 ? record.get(1) : null);
-                    String stockStr = record.isMapped("stock") ? record.get("stock") : (record.size() > 2 ? record.get(2) : null);
-                    String statusStr = record.isMapped("status") ? record.get("status") : (record.size() > 3 ? record.get(3) : null);
+                    String name = record.isMapped("name") ? record.get("name")
+                            : (record.size() > 0 ? record.get(0) : null);
+                    String priceStr = record.isMapped("price") ? record.get("price")
+                            : (record.size() > 1 ? record.get(1) : null);
+                    String stockStr = record.isMapped("stock") ? record.get("stock")
+                            : (record.size() > 2 ? record.get(2) : null);
+                    String statusStr = record.isMapped("status") ? record.get("status")
+                            : (record.size() > 3 ? record.get(3) : null);
 
                     BigDecimal price = null;
                     try {
                         if (priceStr != null && !priceStr.isBlank()) {
                             price = new BigDecimal(priceStr.trim());
                         }
-                    } catch (Exception ignored) {}
+                    } catch (Exception ignored) {
+                    }
 
                     Integer stock = null;
                     try {
                         if (stockStr != null && !stockStr.isBlank()) {
                             stock = Integer.parseInt(stockStr.trim());
                         }
-                    } catch (Exception ignored) {}
+                    } catch (Exception ignored) {
+                    }
 
                     return ProductImportRequest.builder()
                             .name(name != null ? name.trim() : null)
@@ -145,10 +152,14 @@ public class ProductBatchConfig {
         };
     }
 
-
     @Bean
-    public ItemWriter<Product> productItemWriter() {
-        return chunk -> productRepository.saveAll(chunk.getItems());
+    public ItemWriter<Product> productItemWriter(EntityManager entityManager) {
+        return chunk -> {
+            productRepository.saveAll(chunk.getItems());
+            productRepository.flush();
+            entityManager.clear();
+            log.info("Đã import và clear cache thành công batch {} sản phẩm", chunk.getItems().size());
+        };
     }
 
     @Bean
@@ -157,15 +168,16 @@ public class ProductBatchConfig {
             PlatformTransactionManager transactionManager,
             ItemReader<ProductImportRequest> productCsvItemReader,
             ItemProcessor<ProductImportRequest, Product> productItemProcessor,
-            ItemWriter<Product> productItemWriter) {
+            ItemWriter<Product> productItemWriter,
+            @Qualifier("taskExecutor") TaskExecutor taskExecutor) {
         return new StepBuilder("importProductStep", jobRepository)
-                .<ProductImportRequest, Product>chunk(10, transactionManager)
+                .<ProductImportRequest, Product>chunk(100, transactionManager)
                 .reader(productCsvItemReader)
                 .processor(productItemProcessor)
                 .writer(productItemWriter)
+                .taskExecutor(taskExecutor)
                 .build();
     }
-
 
     @Bean
     public Job importProductJob(JobRepository jobRepository, Step importProductStep) {

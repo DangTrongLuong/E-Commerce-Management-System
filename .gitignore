@@ -38,6 +38,7 @@ bin/
 
 # Bỏ qua tất cả file Markdown (.md)
 *.md
+*.csv
 
 *.txt
 
