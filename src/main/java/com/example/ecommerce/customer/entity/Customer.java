@@ -45,25 +45,25 @@ public class Customer {
     @Column(nullable = false, name = "updated_at")
     private LocalDateTime updatedAt;
 
-    @OneToMany(mappedBy = "customer", fetch = FetchType.LAZY)
+    @OneToMany(mappedBy = "customer", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
     @Builder.Default
     private List<Order> orders = new ArrayList<>();
 
-    @OneToOne(mappedBy = "customer", fetch = FetchType.LAZY)
+    @OneToOne(mappedBy = "customer", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
     private AppUser user;
 
     @PrePersist
-    protected void onCreate(){
+    protected void onCreate() {
         createdAt = LocalDateTime.now();
         updatedAt = LocalDateTime.now();
     }
 
     @PreUpdate
-    protected void onUpdate(){
+    protected void onUpdate() {
         updatedAt = LocalDateTime.now();
     }
 
-    public void addOrder(Order order){
+    public void addOrder(Order order) {
         orders.add(order);
         order.setCustomer(this);
     }

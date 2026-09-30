@@ -45,7 +45,7 @@ public class AuthService {
     private final SecurityUtils securityUtils;
     private final LoginAttemptService loginAttemptService;
 
-    @Transactional
+    @Transactional(rollbackFor = Exception.class)
     public UserResponse register(RegisterRequest request) {
         if (userRepository.existsByEmail(request.getEmail()) || customerRepository.existsByEmail(request.getEmail())) {
             throw new DuplicateResourceException("Email already in use");
@@ -57,45 +57,43 @@ public class AuthService {
                 .phone(request.getPhone())
                 .status(CustomerStatus.ACTIVE)
                 .build();
-        Customer savedCustomer = customerRepository.save(customer);
 
         AppUser user = AppUser.builder()
                 .email(request.getEmail())
                 .passwordHash(passwordEncoder.encode(request.getPassword()))
                 .role(Role.USER)
                 .status(UserStatus.ACTIVE)
-                .customer(savedCustomer)
+                .customer(customer)
                 .failedLoginCount(0)
                 .build();
-        AppUser savedUser = userRepository.save(user);
+
+        AppUser savedUser = userRepository.saveAndFlush(user);
 
         return UserResponse.builder()
                 .id(savedUser.getId())
                 .email(savedUser.getEmail())
                 .role(savedUser.getRole())
                 .status(savedUser.getStatus())
-                .customerId(Long.valueOf(savedCustomer.getId()))
+                .customerId(savedUser.getCustomer() != null ? Long.valueOf(savedUser.getCustomer().getId()) : null)
                 .createdAt(savedUser.getCreatedAt())
                 .build();
     }
 
-    @Transactional
+    @Transactional(rollbackFor = Exception.class)
     public AuthResponse login(LoginRequest request) {
         AppUser user = userRepository.findByEmail(request.getEmail())
                 .orElseThrow(() -> new BadRequestExeption("Invalid email or password"));
 
-        if (user.getStatus() == UserStatus.LOCKED || (user.getLockedUntil() != null && user.getLockedUntil().isAfter(LocalDateTime.now()))) {
+        if (user.getStatus() == UserStatus.LOCKED
+                || (user.getLockedUntil() != null && user.getLockedUntil().isAfter(LocalDateTime.now()))) {
             throw new AccountLockedException("Account is locked due to too many failed login attempts");
         }
 
         if (!passwordEncoder.matches(request.getPassword(), user.getPasswordHash())) {
-            // Use a dedicated service bean so REQUIRES_NEW AOP proxy is properly applied
-            // (self-invocation within the same bean bypasses Spring's proxy).
             loginAttemptService.recordFailedAttempt(user.getId());
             throw new BadRequestExeption("Invalid email or password");
         }
 
-        // Reset failed login count
         user.setFailedLoginCount(0);
         user.setLockedUntil(null);
         userRepository.save(user);
@@ -132,7 +130,7 @@ public class AuthService {
                 .build();
     }
 
-    @Transactional // try catch
+    @Transactional(rollbackFor = Exception.class) // try catch
     public AuthResponse refreshToken(RefreshTokenRequest request) {
         String refreshToken = request.getRefreshToken();
         if (!jwtUtil.validateToken(refreshToken) || !"refresh".equals(jwtUtil.extractType(refreshToken))) {
@@ -188,7 +186,7 @@ public class AuthService {
                 .build();
     }
 
-    @Transactional
+    @Transactional(rollbackFor = Exception.class)
     public void logout(RefreshTokenRequest request) {
         AppUser currentUser = null;
         try {

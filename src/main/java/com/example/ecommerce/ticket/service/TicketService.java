@@ -35,7 +35,6 @@ import com.example.ecommerce.common.util.SecurityUtils;
 import com.example.ecommerce.ticket.workflow.TicketStateMachine;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -44,8 +43,6 @@ import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.math.BigDecimal;
-import java.time.LocalDateTime;
 import java.util.*;
 
 @Slf4j
@@ -59,7 +56,6 @@ public class TicketService {
     private final ProductRepository productRepository;
     private final TicketStateMachine stateMachine;
     private final SecurityUtils securityUtils;
-    private final ApplicationEventPublisher eventPublisher;
     private final PdfInvoiceService pdfInvoiceService;
     private final EmailService emailService;
 
@@ -111,7 +107,7 @@ public class TicketService {
                 .toList();
     }
 
-    @Transactional
+    @Transactional(rollbackFor = Exception.class)
     public TicketResponse approveTicket(Long id, TicketActionRequest request) {
         PurchaseTicket ticket = findTicketOrThrow(id);
         AppUser currentUser = securityUtils.getCurrentUser();
@@ -137,18 +133,21 @@ public class TicketService {
                 String filePath = pdfInvoiceService.saveInvoiceToDisk(ticket.getOrder().getId(), pdfBytes);
                 if (filePath != null) {
                     File pdfFile = new File(filePath);
-                    String recipientEmail = ticket.getOrder().getCustomer() != null ? ticket.getOrder().getCustomer().getEmail() : null;
+                    String recipientEmail = ticket.getOrder().getCustomer() != null
+                            ? ticket.getOrder().getCustomer().getEmail()
+                            : null;
                     emailService.sendInvoiceEmailAsync(ticket.getOrder().getId(), recipientEmail, pdfFile);
                 }
             } catch (Exception e) {
-                log.warn("Auto-generating PDF invoice failed on approval for order #{}: {}", ticket.getOrder().getId(), e.getMessage());
+                log.warn("Auto-generating PDF invoice failed on approval for order #{}: {}", ticket.getOrder().getId(),
+                        e.getMessage());
             }
         }
 
         return mapToResponse(ticket);
     }
 
-    @Transactional
+    @Transactional(rollbackFor = Exception.class)
     public TicketResponse rejectTicket(Long id, TicketActionRequest request) {
         PurchaseTicket ticket = findTicketOrThrow(id);
         AppUser currentUser = securityUtils.getCurrentUser();
@@ -168,7 +167,7 @@ public class TicketService {
         return mapToResponse(ticket);
     }
 
-    @Transactional
+    @Transactional(rollbackFor = Exception.class)
     public TicketResponse returnTicket(Long id, TicketActionRequest request) {
         PurchaseTicket ticket = findTicketOrThrow(id);
         AppUser currentUser = securityUtils.getCurrentUser();
@@ -188,7 +187,7 @@ public class TicketService {
         return mapToResponse(ticket);
     }
 
-    @Transactional
+    @Transactional(rollbackFor = Exception.class)
     public TicketResponse updateTicketItems(Long id, List<OrderItemRequest> newItemRequests) {
         PurchaseTicket ticket = findTicketOrThrow(id);
         AppUser currentUser = securityUtils.getCurrentUser();
@@ -251,12 +250,13 @@ public class TicketService {
         order.recaculateTotalAmount();
         orderRepository.save(order);
 
-        recordHistory(ticket, TicketAction.UPDATE, TicketStatus.RETURNED, TicketStatus.RETURNED, currentUser, "Updated order items");
+        recordHistory(ticket, TicketAction.UPDATE, TicketStatus.RETURNED, TicketStatus.RETURNED, currentUser,
+                "Updated order items");
 
         return mapToResponse(ticket);
     }
 
-    @Transactional
+    @Transactional(rollbackFor = Exception.class)
     public TicketResponse resubmitTicket(Long id, TicketActionRequest request) {
         PurchaseTicket ticket = findTicketOrThrow(id);
         AppUser currentUser = securityUtils.getCurrentUser();
@@ -276,7 +276,7 @@ public class TicketService {
         return mapToResponse(ticket);
     }
 
-    @Transactional
+    @Transactional(rollbackFor = Exception.class)
     public TicketResponse cancelTicket(Long id, TicketActionRequest request) {
         PurchaseTicket ticket = findTicketOrThrow(id);
         AppUser currentUser = securityUtils.getCurrentUser();
@@ -320,13 +320,15 @@ public class TicketService {
         if (currentUser.getRole() == Role.ADMIN) {
             return;
         }
-        if (currentUser.getRole() == Role.PRODUCT_OWNER && ticket.getApprover() != null && ticket.getApprover().getId().equals(currentUser.getId())) {
+        if (currentUser.getRole() == Role.PRODUCT_OWNER && ticket.getApprover() != null
+                && ticket.getApprover().getId().equals(currentUser.getId())) {
             return;
         }
         throw new AccessDeniedException("Forbidden: Caller is not authorized to process this ticket");
     }
 
-    private void recordHistory(PurchaseTicket ticket, TicketAction action, TicketStatus from, TicketStatus to, AppUser actor, String comment) {
+    private void recordHistory(PurchaseTicket ticket, TicketAction action, TicketStatus from, TicketStatus to,
+            AppUser actor, String comment) {
         TicketHistory history = TicketHistory.builder()
                 .ticket(ticket)
                 .action(action)
@@ -335,7 +337,8 @@ public class TicketService {
                 .actor(actor)
                 .comment(comment)
                 .build();
-        historyRepository.save(history);
+        ticket.addHistory(history);
+        historyRepository.saveAndFlush(history);
     }
 
     private TicketHistoryResponse mapToHistoryResponse(TicketHistory history) {

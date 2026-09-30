@@ -55,11 +55,21 @@ public class PurchaseTicket {
     @Builder.Default
     private Long version = 0L;
 
+    @OneToMany(mappedBy = "ticket", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
+    @Builder.Default
+    @ToString.Exclude
+    private java.util.List<TicketHistory> histories = new java.util.ArrayList<>();
+
     @Column(name = "created_at", nullable = false)
     private LocalDateTime createdAt;
 
     @Column(name = "updated_at", nullable = false)
     private LocalDateTime updatedAt;
+
+    public void addHistory(TicketHistory history) {
+        histories.add(history);
+        history.setTicket(this);
+    }
 
     @PrePersist
     protected void onCreate() {

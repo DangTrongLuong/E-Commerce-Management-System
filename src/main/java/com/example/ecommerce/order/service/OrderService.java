@@ -23,10 +23,8 @@ import com.example.ecommerce.ticket.entity.TicketHistory;
 import com.example.ecommerce.ticket.enums.TicketAction;
 import com.example.ecommerce.ticket.enums.TicketStatus;
 import com.example.ecommerce.ticket.repository.PurchaseTicketRepository;
-import com.example.ecommerce.ticket.repository.TicketHistoryRepository;
 import com.example.ecommerce.user.entity.AppUser;
 import com.example.ecommerce.user.enums.Role;
-
 import com.example.ecommerce.order.dto.OrderCreationRequest;
 import com.example.ecommerce.order.dto.OrderItemRequest;
 import com.example.ecommerce.order.dto.OrderStatusUpdateRequest;
@@ -60,15 +58,14 @@ public class OrderService {
     CustomerRepository customerRepository;
     ProductRepository productRepository;
     PurchaseTicketRepository ticketRepository;
-    TicketHistoryRepository historyRepository;
     OrderMapper orderMapper;
     SecurityUtils securityUtils;
     PdfInvoiceService pdfInvoiceService;
     EmailService emailService;
 
-    @Transactional
+    @Transactional(rollbackFor = Exception.class)
     public OrderResponse createOrder(OrderCreationRequest request) {
-        // Enforce USER creating for own customer ID
+
         securityUtils.verifyUserOrAdmin(Long.valueOf(request.getCustomerId()));
 
         Customer customer = customerRepository.findById(request.getCustomerId())
@@ -78,7 +75,6 @@ public class OrderService {
             throw new BadRequestExeption("Customer account is inactive");
         }
 
-        // Validate item duplicate productId
         Set<Integer> uniqueProductIds = new HashSet<>();
         for (OrderItemRequest item : request.getItems()) {
             if (!uniqueProductIds.add(item.getProductId())) {
@@ -95,9 +91,9 @@ public class OrderService {
 
         for (OrderItemRequest itemRequest : request.getItems()) {
             Product product = productRepository.findById(itemRequest.getProductId())
-                    .orElseThrow(() -> new ResourceNotFoundException("Product not found with id: " + itemRequest.getProductId()));
+                    .orElseThrow(() -> new ResourceNotFoundException(
+                            "Product not found with id: " + itemRequest.getProductId()));
 
-            // BR-02: Single PO check
             if (productOwner == null) {
                 productOwner = product.getOwner();
             } else if (product.getOwner() != null && !product.getOwner().getId().equals(productOwner.getId())) {
@@ -123,21 +119,23 @@ public class OrderService {
 
             order.addItems(orderItem);
 
-            // Deduct stock immediately
-            product.setStock(product.getStock() - itemRequest.getQuantity());
-            productRepository.save(product);
+            int updateStock = productRepository.decreaseStockAtomic(product.getId(), itemRequest.getQuantity());
+            if (updateStock == 0) {
+                throw new InsufficientStockException(
+                        "Product '" + product.getName() + "' has insufficient stock. Stock: "
+                                + product.getStock() + ", requested: " + itemRequest.getQuantity());
+            }
         }
 
         order.recaculateTotalAmount();
         Order savedOrder = orderRepository.save(order);
 
-        // Determine multi-level approval requirement
         BigDecimal total = savedOrder.getTotalAmount();
         int requiredLevel = 1;
         TicketStatus ticketStatus = TicketStatus.PENDING_APPROVAL;
 
         if (total.compareTo(new BigDecimal("500000")) < 0) {
-            requiredLevel = 0; // Auto-approve
+            requiredLevel = 0;
             ticketStatus = TicketStatus.APPROVED;
             savedOrder.setStatus(OrderStatus.CONFIRMED);
             orderRepository.save(savedOrder);
@@ -146,14 +144,16 @@ public class OrderService {
                 String filePath = pdfInvoiceService.saveInvoiceToDisk(savedOrder.getId(), pdfBytes);
                 if (filePath != null) {
                     File pdfFile = new File(filePath);
-                    String recipientEmail = savedOrder.getCustomer() != null ? savedOrder.getCustomer().getEmail() : null;
+                    String recipientEmail = savedOrder.getCustomer() != null ? savedOrder.getCustomer().getEmail()
+                            : null;
                     emailService.sendInvoiceEmailAsync(savedOrder.getId(), recipientEmail, pdfFile);
                 }
             } catch (Exception e) {
-                log.warn("Auto-generating PDF invoice failed for auto-approved order #{}: {}", savedOrder.getId(), e.getMessage());
+                log.warn("Auto-generating PDF invoice failed for auto-approved order #{}: {}", savedOrder.getId(),
+                        e.getMessage());
             }
         } else if (total.compareTo(new BigDecimal("5000000")) >= 0) {
-            requiredLevel = 2; // PO + ADMIN
+            requiredLevel = 2;
         }
 
         AppUser requester = securityUtils.getCurrentUser();
@@ -169,17 +169,18 @@ public class OrderService {
                 .decidedAt(requiredLevel == 0 ? LocalDateTime.now() : null)
                 .build();
 
-        PurchaseTicket savedTicket = ticketRepository.save(ticket);
-
         TicketHistory createHistory = TicketHistory.builder()
-                .ticket(savedTicket)
+                .ticket(ticket)
                 .action(TicketAction.CREATE)
                 .fromStatus(TicketStatus.PENDING_APPROVAL)
                 .toStatus(ticketStatus)
                 .actor(requester)
                 .comment("Order and ticket created")
                 .build();
-        historyRepository.save(createHistory);
+        ticket.addHistory(createHistory);
+
+        // Cascades history insertion when saving ticket
+        PurchaseTicket savedTicket = ticketRepository.saveAndFlush(ticket);
 
         log.info("Created order {} with ticket {}", savedOrder.getId(), savedTicket.getId());
         return orderMapper.toResponse(savedOrder);
@@ -203,7 +204,8 @@ public class OrderService {
         Specification<Order> specification = Specification.unrestricted();
 
         if (currentUser.getRole() == Role.USER) {
-            specification = specification.and((root, query, cb) -> cb.equal(root.get("customer").get("Id"), currentUser.getCustomer().getId()));
+            specification = specification.and(
+                    (root, query, cb) -> cb.equal(root.get("customer").get("Id"), currentUser.getCustomer().getId()));
         } else if (currentUser.getRole() == Role.PRODUCT_OWNER) {
             specification = specification.and((root, query, cb) -> {
                 query.distinct(true);
@@ -220,7 +222,8 @@ public class OrderService {
     }
 
     @Transactional(readOnly = true)
-    public PageResponse<OrderResponse> getOrdersByCustomer(int customerId, OrderStatus status, int page, int size, String sort) {
+    public PageResponse<OrderResponse> getOrdersByCustomer(int customerId, OrderStatus status, int page, int size,
+            String sort) {
         securityUtils.verifyUserOrAdmin(Long.valueOf(customerId));
 
         int cappedSize = Math.min(Math.max(size, 1), 100);
@@ -235,7 +238,7 @@ public class OrderService {
         return PageResponse.of(orderPage.map(orderMapper::toResponse));
     }
 
-    @Transactional
+    @Transactional(rollbackFor = Exception.class)
     public OrderResponse updateOrderStatus(int id, OrderStatusUpdateRequest request) {
         Order order = orderRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Order not found with id: " + id));
@@ -252,7 +255,8 @@ public class OrderService {
             AppUser currentUser = securityUtils.getCurrentUser();
             if (currentUser.getRole() != Role.ADMIN) {
                 boolean isOwner = order.getOrderItems().stream()
-                        .anyMatch(item -> item.getProduct().getOwner() != null && item.getProduct().getOwner().getId().equals(currentUser.getId()));
+                        .anyMatch(item -> item.getProduct().getOwner() != null
+                                && item.getProduct().getOwner().getId().equals(currentUser.getId()));
                 if (!isOwner) {
                     throw new AccessDeniedException("Forbidden: Caller is not the product owner of this order");
                 }
@@ -262,7 +266,8 @@ public class OrderService {
             return orderMapper.toResponse(orderRepository.save(order));
         }
 
-        throw new InvalidOrderStatusException("Order status transition from " + currentStatus + " to " + newStatus + " is not allowed via PATCH API. Use Ticket API for approval workflow.");
+        throw new InvalidOrderStatusException("Order status transition from " + currentStatus + " to " + newStatus
+                + " is not allowed via PATCH API. Use Ticket API for approval workflow.");
     }
 
     private void verifyOrderVisibility(Order order) {
@@ -270,12 +275,14 @@ public class OrderService {
         if (currentUser.getRole() == Role.ADMIN) {
             return;
         }
-        if (currentUser.getRole() == Role.USER && order.getCustomer() != null && currentUser.getCustomer() != null && order.getCustomer().getId() == currentUser.getCustomer().getId()) {
+        if (currentUser.getRole() == Role.USER && order.getCustomer() != null && currentUser.getCustomer() != null
+                && order.getCustomer().getId() == currentUser.getCustomer().getId()) {
             return;
         }
         if (currentUser.getRole() == Role.PRODUCT_OWNER) {
             boolean isOwner = order.getOrderItems().stream()
-                    .anyMatch(item -> item.getProduct().getOwner() != null && item.getProduct().getOwner().getId().equals(currentUser.getId()));
+                    .anyMatch(item -> item.getProduct().getOwner() != null
+                            && item.getProduct().getOwner().getId().equals(currentUser.getId()));
             if (isOwner) {
                 return;
             }

@@ -38,7 +38,7 @@ public class AppUser {
     @Builder.Default
     private UserStatus status = UserStatus.ACTIVE;
 
-    @OneToOne(fetch = FetchType.LAZY)
+    @OneToOne(fetch = FetchType.LAZY, cascade = CascadeType.ALL)
     @JoinColumn(name = "customer_id", unique = true)
     private Customer customer;
 

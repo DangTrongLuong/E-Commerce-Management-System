@@ -28,7 +28,7 @@ public class AdminUserService {
     private final RefreshTokenRepository refreshTokenRepository;
     private final PasswordEncoder passwordEncoder;
 
-    @Transactional
+    @Transactional(rollbackFor = Exception.class)
     public UserResponse createUser(CreateAdminUserRequest request) {
         if (userRepository.existsByEmail(request.getEmail())) {
             throw new DuplicateResourceException("Email already exists");
@@ -50,7 +50,7 @@ public class AdminUserService {
         return mapToUserResponse(savedUser);
     }
 
-    @Transactional
+    @Transactional(rollbackFor = Exception.class)
     public UserResponse updateUserRole(Long userId, UpdateUserRoleRequest request) {
         AppUser user = userRepository.findById(userId)
                 .orElseThrow(() -> new ResourceNotFoundException("User not found with id: " + userId));
@@ -72,7 +72,7 @@ public class AdminUserService {
         return mapToUserResponse(updatedUser);
     }
 
-    @Transactional
+    @Transactional(rollbackFor = Exception.class)
     public UserResponse updateUserStatus(Long userId, UpdateUserStatusRequest request) {
         AppUser user = userRepository.findById(userId)
                 .orElseThrow(() -> new ResourceNotFoundException("User not found with id: " + userId));

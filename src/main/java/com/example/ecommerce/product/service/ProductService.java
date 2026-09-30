@@ -36,7 +36,7 @@ public class ProductService {
     ProductMapper productMapper;
     SecurityUtils securityUtils;
 
-    @Transactional
+    @Transactional(rollbackFor = Exception.class)
     public ProductResponse createProduct(ProductCreationRequest productCreationRequest) {
         boolean nameExists = productRepository
                 .findByNameIgnoreCase(productCreationRequest.getName())
@@ -111,7 +111,7 @@ public class ProductService {
         return productMapper.toResponse(product);
     }
 
-    @Transactional
+    @Transactional(rollbackFor = Exception.class)
     public ProductResponse updateProduct(int id, ProductUpdateRequest productUpdateRequest) {
         Product product = productRepository.findById(id)
                 .orElseThrow(() -> ResourceNotFoundException.of("Product", "id", id));
@@ -122,7 +122,7 @@ public class ProductService {
         return productMapper.toResponse(productRepository.save(product));
     }
 
-    @Transactional
+    @Transactional(rollbackFor = Exception.class)
     public void deleteProduct(int id) {
         Product product = productRepository.findById(id)
                 .orElseThrow(() -> ResourceNotFoundException.of("Product", "id", id));
