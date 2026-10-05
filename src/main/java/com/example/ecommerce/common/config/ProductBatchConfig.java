@@ -69,6 +69,17 @@ public class ProductBatchConfig {
                 }
             }
 
+            private void closeResources() {
+                if (csvParser != null) {
+                    try {
+                        csvParser.close();
+                        log.info("Đã đóng CSV Parser thành công sau khi import.");
+                    } catch (Exception e) {
+                        log.warn("Lỗi khi đóng file CSV: {}", e.getMessage());
+                    }
+                }
+            }
+
             @Override
             public synchronized ProductImportRequest read() {
                 init();
@@ -106,6 +117,7 @@ public class ProductBatchConfig {
                             .status(statusStr != null ? statusStr.trim() : null)
                             .build();
                 }
+                closeResources();
                 return null;
             }
         };

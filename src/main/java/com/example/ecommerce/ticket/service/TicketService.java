@@ -10,6 +10,7 @@ import com.example.ecommerce.common.exception.SelfApprovalNotAllowedException;
 import com.example.ecommerce.customer.entity.Customer;
 import com.example.ecommerce.order.entity.Order;
 import com.example.ecommerce.order.entity.OrderItem;
+import com.example.ecommerce.order.event.OrderInvoiceApprovedEvent;
 import com.example.ecommerce.order.repository.OrderRepository;
 import com.example.ecommerce.notification.service.EmailService;
 import com.example.ecommerce.order.service.PdfInvoiceService;
@@ -35,6 +36,8 @@ import com.example.ecommerce.common.util.SecurityUtils;
 import com.example.ecommerce.ticket.workflow.TicketStateMachine;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -56,8 +59,7 @@ public class TicketService {
     private final ProductRepository productRepository;
     private final TicketStateMachine stateMachine;
     private final SecurityUtils securityUtils;
-    private final PdfInvoiceService pdfInvoiceService;
-    private final EmailService emailService;
+    private final ApplicationEventPublisher eventPublisher;
 
     @Transactional(readOnly = true)
     public PageResponse<TicketResponse> getMyTickets(TicketStatus status, int page, int size) {
@@ -128,20 +130,9 @@ public class TicketService {
         recordHistory(ticket, TicketAction.APPROVE, fromStatus, toStatus, currentUser, comment);
 
         if (toStatus == TicketStatus.APPROVED) {
-            try {
-                byte[] pdfBytes = pdfInvoiceService.generateInvoicePdf(ticket.getOrder().getId());
-                String filePath = pdfInvoiceService.saveInvoiceToDisk(ticket.getOrder().getId(), pdfBytes);
-                if (filePath != null) {
-                    File pdfFile = new File(filePath);
-                    String recipientEmail = ticket.getOrder().getCustomer() != null
-                            ? ticket.getOrder().getCustomer().getEmail()
-                            : null;
-                    emailService.sendInvoiceEmailAsync(ticket.getOrder().getId(), recipientEmail, pdfFile);
-                }
-            } catch (Exception e) {
-                log.warn("Auto-generating PDF invoice failed on approval for order #{}: {}", ticket.getOrder().getId(),
-                        e.getMessage());
-            }
+            eventPublisher.publishEvent(new OrderInvoiceApprovedEvent(
+                    ticket.getOrder().getId(),
+                    ticket.getOrder().getCustomer() != null ? ticket.getOrder().getCustomer().getEmail() : null));
         }
 
         return mapToResponse(ticket);
@@ -355,10 +346,9 @@ public class TicketService {
     }
 
     private TicketResponse mapToResponse(PurchaseTicket ticket) {
-        String lastComment = historyRepository.findByTicketIdOrderByCreatedAtAsc(ticket.getId()).stream()
+        String lastComment = historyRepository
+                .findFirstByTicketIdAndCommentIsNotNullAndCommentNotOrderByCreatedAtDesc(ticket.getId(), "")
                 .map(TicketHistory::getComment)
-                .filter(c -> c != null && !c.isBlank())
-                .reduce((first, second) -> second)
                 .orElse(null);
 
         Customer customer = ticket.getOrder().getCustomer();

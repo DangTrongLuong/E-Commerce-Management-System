@@ -34,4 +34,8 @@ public interface ProductRepository extends JpaRepository<Product, Integer>, JpaS
     @Query("UPDATE Product p SET p.stock = p.stock - :quantity " +
             "WHERE p.Id = :id AND p.stock >= :quantity")
     int decreaseStockAtomic(@Param("id") Integer id, @Param("quantity") Integer quantity);
+
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query("UPDATE Product p SET p.stock = p.stock + :quantity WHERE p.Id = :id")
+    int increaseStockAtomic(@Param("id") Integer id, @Param("quantity") Integer quantity);
 }

@@ -8,5 +8,8 @@ public enum TicketAction {
     UPDATE,
     RESUBMIT,
     CANCEL,
-    EXPIRE
+    EXPIRE,
+    REFUND_REQUEST,
+    REFUND_APPROVE,
+    REFUND_REJECT
 }

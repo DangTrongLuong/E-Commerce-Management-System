@@ -16,6 +16,7 @@ import java.time.LocalDateTime;
 @AllArgsConstructor
 @Table(name = "app_user")
 @ToString(exclude = "customer")
+@EqualsAndHashCode(exclude = "customer")
 public class AppUser {
 
     @Id

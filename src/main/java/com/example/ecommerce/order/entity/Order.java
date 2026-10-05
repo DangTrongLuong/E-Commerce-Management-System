@@ -19,9 +19,10 @@ import java.util.List;
 @NoArgsConstructor
 @AllArgsConstructor
 @Table(name = "orders")
-@ToString(exclude = {"customer", "orderItems"})
+@ToString(exclude = { "customer", "orderItems" })
+@EqualsAndHashCode(exclude = { "customer", "orderItems" })
 public class Order {
-    //id, customer_id, total_amount, status, created_at, updated_at
+    // id, customer_id, total_amount, status, created_at, updated_at
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private int Id;
@@ -34,8 +35,7 @@ public class Order {
     @Builder.Default
     private List<OrderItem> orderItems = new ArrayList<>();
 
-
-    @Column(name = "total_amount",nullable = false, precision = 15, scale = 2)
+    @Column(name = "total_amount", nullable = false, precision = 15, scale = 2)
     @Builder.Default
     private BigDecimal totalAmount = BigDecimal.ZERO;
 
@@ -59,22 +59,22 @@ public class Order {
     private LocalDateTime updatedAt;
 
     @PrePersist
-    protected void onCreate(){
+    protected void onCreate() {
         createdAt = LocalDateTime.now();
         updatedAt = LocalDateTime.now();
     }
 
     @PreUpdate
-    protected void onUpdate(){
+    protected void onUpdate() {
         updatedAt = LocalDateTime.now();
     }
 
-    public void addItems(OrderItem orderItem){
+    public void addItems(OrderItem orderItem) {
         orderItems.add(orderItem);
         orderItem.setOrder(this);
     }
 
-    public void recaculateTotalAmount(){
+    public void recaculateTotalAmount() {
         this.totalAmount = orderItems.stream()
                 .map(OrderItem::getSubTotal)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);

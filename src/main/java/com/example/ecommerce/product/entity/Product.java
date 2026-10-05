@@ -20,8 +20,9 @@ import java.util.List;
 @AllArgsConstructor
 @Table(name = "products")
 @ToString(exclude = "orderItems")
+@EqualsAndHashCode(exclude = { "owner", "orderItems" })
 public class Product {
-    //id, name, price, stock, status, created_at, updated_at
+    // id, name, price, stock, status, created_at, updated_at
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -61,13 +62,13 @@ public class Product {
     private List<OrderItem> orderItems = new ArrayList<>();
 
     @PrePersist
-    protected void onCreate(){
+    protected void onCreate() {
         createdAt = LocalDateTime.now();
         updatedAt = LocalDateTime.now();
     }
 
     @PreUpdate
-    protected void onUpdate(){
+    protected void onUpdate() {
         updatedAt = LocalDateTime.now();
     }
 }

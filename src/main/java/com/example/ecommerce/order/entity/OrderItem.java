@@ -13,9 +13,10 @@ import java.math.BigDecimal;
 @NoArgsConstructor
 @Entity
 @Table(name = "order_items")
-@ToString(exclude = {"order", "product"})
+@ToString(exclude = { "order", "product" })
+@EqualsAndHashCode(exclude = { "order", "product" })
 public class OrderItem {
-    //id, order_id, product_id, quantity, unit_price, subtotal
+    // id, order_id, product_id, quantity, unit_price, subtotal
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private int Id;
@@ -26,7 +27,7 @@ public class OrderItem {
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "product_id", nullable = false, foreignKey = @ForeignKey(name = "fk_order_item_product"))
-    private  Product product;
+    private Product product;
 
     @Column(name = "quantity", nullable = false)
     private Integer quantity;
@@ -37,7 +38,7 @@ public class OrderItem {
     @Column(name = "subtotal", nullable = false, precision = 15, scale = 2)
     private BigDecimal subTotal;
 
-    public void caculateSubtotal(){
+    public void caculateSubtotal() {
         this.subTotal = unitPrice.multiply(BigDecimal.valueOf(quantity));
     }
 

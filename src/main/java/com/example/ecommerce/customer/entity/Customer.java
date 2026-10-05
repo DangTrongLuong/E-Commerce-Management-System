@@ -19,7 +19,8 @@ import java.util.List;
 @NoArgsConstructor
 @AllArgsConstructor
 @Table(name = "customers")
-@ToString(exclude = "orders")
+@ToString(exclude = { "orders", "user" })
+@EqualsAndHashCode(exclude = { "orders", "user" })
 public class Customer {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
