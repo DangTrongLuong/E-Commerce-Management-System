@@ -8,6 +8,8 @@ import com.example.ecommerce.order.enums.OrderStatus;
 import com.example.ecommerce.ticket.enums.TicketAction;
 import com.example.ecommerce.ticket.enums.TicketStatus;
 import com.example.ecommerce.common.exception.InvalidTicketStatusException;
+import com.example.ecommerce.product.repository.ProductRepository;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
@@ -15,7 +17,10 @@ import java.time.LocalDateTime;
 
 @Slf4j
 @Component
+@RequiredArgsConstructor
 public class TicketStateMachine {
+
+    private final ProductRepository productRepository;
 
     public TicketStatus transition(PurchaseTicket ticket, TicketAction action, String comment) {
         TicketStatus current = ticket.getStatus();
@@ -54,7 +59,8 @@ public class TicketStateMachine {
                         ticket.setDecidedAt(LocalDateTime.now());
                         cancelOrderAndRefundStock(ticket.getOrder(), "Ticket expired (SLA exceeded)");
                     }
-                    default -> throw new InvalidTicketStatusException("Cannot perform action " + action + " on ticket status " + current);
+                    default -> throw new InvalidTicketStatusException(
+                            "Cannot perform action " + action + " on ticket status " + current);
                 }
             }
             case RETURNED -> {
@@ -74,10 +80,12 @@ public class TicketStateMachine {
                         ticket.setDecidedAt(LocalDateTime.now());
                         cancelOrderAndRefundStock(ticket.getOrder(), "Ticket expired (SLA exceeded)");
                     }
-                    default -> throw new InvalidTicketStatusException("Cannot perform action " + action + " on ticket status " + current);
+                    default -> throw new InvalidTicketStatusException(
+                            "Cannot perform action " + action + " on ticket status " + current);
                 }
             }
-            case APPROVED, REJECTED, CANCELLED, EXPIRED -> throw new InvalidTicketStatusException("Ticket is in terminal status " + current + " and cannot be modified");
+            case APPROVED, REJECTED, CANCELLED, EXPIRED -> throw new InvalidTicketStatusException(
+                    "Ticket is in terminal status " + current + " and cannot be modified");
             default -> throw new InvalidTicketStatusException("Unknown ticket status: " + current);
         }
 
@@ -96,8 +104,7 @@ public class TicketStateMachine {
             order.setStatus(OrderStatus.CANCELLED);
             order.setCancelReason(reason);
             for (OrderItem item : order.getOrderItems()) {
-                Product product = item.getProduct();
-                product.setStock(product.getStock() + item.getQuantity());
+                productRepository.increaseStockAtomic(item.getProduct().getId(), item.getQuantity());
             }
         }
     }

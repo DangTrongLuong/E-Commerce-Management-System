@@ -107,20 +107,21 @@ class WorkflowIntegrationTest {
                 .build());
 
         // 3. Setup Customer & linked User
-        customer = customerRepository.save(Customer.builder()
+        Customer unpersistedCustomer = Customer.builder()
                 .name("John Doe")
                 .email("user_test@example.com")
                 .phone("0901234567")
                 .status(CustomerStatus.ACTIVE)
-                .build());
+                .build();
 
         customerUser = userRepository.save(AppUser.builder()
                 .email("user_test@example.com")
                 .passwordHash("password_hash")
                 .role(Role.USER)
                 .status(UserStatus.ACTIVE)
-                .customer(customer)
+                .customer(unpersistedCustomer)
                 .build());
+        customer = customerUser.getCustomer();
 
         // 4. Setup Product
         product1 = productRepository.save(Product.builder()

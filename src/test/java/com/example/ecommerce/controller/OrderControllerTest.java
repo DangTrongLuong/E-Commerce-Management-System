@@ -64,16 +64,16 @@ class OrderControllerTest {
                 .totalAmount(new BigDecimal("3000.00"))
                 .build();
 
-        when(orderService.createOrder(any(OrderCreationRequest.class))).thenReturn(mockResponse);
+        when(orderService.createOrders(any(OrderCreationRequest.class))).thenReturn(List.of(mockResponse));
 
         mockMvc.perform(post("/api/orders")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.success").value(true))
-                .andExpect(jsonPath("$.data.id").value(1001))
-                .andExpect(jsonPath("$.data.status").value("PENDING"))
-                .andExpect(jsonPath("$.data.totalAmount").value(3000.00));
+                .andExpect(jsonPath("$.data[0].id").value(1001))
+                .andExpect(jsonPath("$.data[0].status").value("PENDING"))
+                .andExpect(jsonPath("$.data[0].totalAmount").value(3000.00));
     }
 
     @Test
@@ -90,7 +90,7 @@ class OrderControllerTest {
                 ))
                 .build();
 
-        when(orderService.createOrder(any(OrderCreationRequest.class)))
+        when(orderService.createOrders(any(OrderCreationRequest.class)))
                 .thenThrow(new ConflictException("Sản phẩm không đủ tồn kho."));
 
         mockMvc.perform(post("/api/orders")
@@ -115,7 +115,7 @@ class OrderControllerTest {
                 ))
                 .build();
 
-        when(orderService.createOrder(any(OrderCreationRequest.class)))
+        when(orderService.createOrders(any(OrderCreationRequest.class)))
                 .thenThrow(new ResourceNotFoundException("Không tìm thấy khách hàng"));
 
         mockMvc.perform(post("/api/orders")

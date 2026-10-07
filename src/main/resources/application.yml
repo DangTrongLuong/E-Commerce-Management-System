@@ -50,7 +50,14 @@ spring:
           ssl:
             trust: smtp.gmail.com
 
-
+app:
+  redis:
+    host: ${REDIS_HOST}
+    port: ${REDIS_PORT}
+    username: ${REDIS_USERNAME}
+    password: ${REDIS_PASSWORD}
+    ssl: ${REDIS_SSL}
+    timeout-ms: 3000
 
 server:
   port: 8080

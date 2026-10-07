@@ -36,7 +36,7 @@ public class JasperReportController {
         byte[] pdfBytes = jasperReportService.generateJasperInvoicePdf(id);
 
         return ResponseEntity.ok()
-                .header(HttpHeaders.CONTENT_DISPOSITION, "inline; filename=\"jasper_invoice_order_" + id + ".pdf\"")
+                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"jasper_invoice_order_" + id + ".pdf\"")
                 .contentType(MediaType.APPLICATION_PDF)
                 .body(pdfBytes);
     }

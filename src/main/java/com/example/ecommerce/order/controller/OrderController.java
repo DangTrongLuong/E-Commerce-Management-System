@@ -66,7 +66,7 @@ public class OrderController {
         byte[] pdfBytes = pdfInvoiceService.generateInvoicePdf(id);
         return ResponseEntity.ok()
                 .header(org.springframework.http.HttpHeaders.CONTENT_DISPOSITION,
-                        "inline; filename=\"invoice_order_" + id + ".pdf\"")
+                        "attachment; filename=\"invoice_order_" + id + ".pdf\"")
                 .contentType(org.springframework.http.MediaType.APPLICATION_PDF)
                 .body(pdfBytes);
     }

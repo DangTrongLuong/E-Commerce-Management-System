@@ -10,7 +10,7 @@ import java.util.Optional;
 @Repository
 public interface TicketHistoryRepository extends JpaRepository<TicketHistory, Long> {
 
-    List<TicketHistory> findByTicketIdOrderByCreatedAtAsc(Long ticketId);
+    List<TicketHistory> findByTicketIdOrderByCreatedAtDesc(Long ticketId);
 
     Optional<TicketHistory> findFirstByTicketIdAndCommentIsNotNullAndCommentNotOrderByCreatedAtDesc(Long ticketId,
             String emptyComment);

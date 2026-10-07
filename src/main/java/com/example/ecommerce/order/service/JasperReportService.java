@@ -56,6 +56,19 @@ public class JasperReportService {
         }
 
         try {
+            String poName = "Product Owner";
+            if (order.getOrderItems() != null && !order.getOrderItems().isEmpty()) {
+                OrderItem firstItem = order.getOrderItems().get(0);
+                if (firstItem.getProduct() != null && firstItem.getProduct().getOwner() != null) {
+                    var owner = firstItem.getProduct().getOwner();
+                    if (owner.getCustomer() != null && owner.getCustomer().getName() != null) {
+                        poName = owner.getCustomer().getName();
+                    } else if (owner.getEmail() != null) {
+                        poName = owner.getEmail();
+                    }
+                }
+            }
+
             Map<String, Object> parameters = new HashMap<>();
             parameters.put("orderId", String.valueOf(order.getId()));
             parameters.put("customerName", order.getCustomer() != null ? order.getCustomer().getName() : "Khách hàng");
@@ -67,6 +80,7 @@ public class JasperReportService {
             parameters.put("createdDate",
                     order.getCreatedAt() != null ? order.getCreatedAt().format(DATE_FORMATTER) : "N/A");
             parameters.put("totalAmount", formatCurrency(order.getTotalAmount()) + " VNĐ");
+            parameters.put("poName", poName);
 
             List<JasperItemDto> itemsList = new ArrayList<>();
             if (order.getOrderItems() != null) {

@@ -12,9 +12,6 @@ import com.example.ecommerce.order.entity.Order;
 import com.example.ecommerce.order.entity.OrderItem;
 import com.example.ecommerce.order.event.OrderInvoiceApprovedEvent;
 import com.example.ecommerce.order.repository.OrderRepository;
-import com.example.ecommerce.notification.service.EmailService;
-import com.example.ecommerce.order.service.PdfInvoiceService;
-import java.io.File;
 import com.example.ecommerce.product.entity.Product;
 import com.example.ecommerce.product.enums.ProductStatus;
 import com.example.ecommerce.product.repository.ProductRepository;
@@ -104,7 +101,7 @@ public class TicketService {
         PurchaseTicket ticket = findTicketOrThrow(id);
         verifyTicketVisibility(ticket);
 
-        return historyRepository.findByTicketIdOrderByCreatedAtAsc(id).stream()
+        return historyRepository.findByTicketIdOrderByCreatedAtDesc(id).stream()
                 .map(this::mapToHistoryResponse)
                 .toList();
     }

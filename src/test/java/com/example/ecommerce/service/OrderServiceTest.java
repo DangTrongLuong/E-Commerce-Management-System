@@ -75,6 +75,9 @@ class OrderServiceTest {
     @Mock
     private com.example.ecommerce.notification.service.EmailService emailService;
 
+    @Mock
+    private org.springframework.context.ApplicationEventPublisher eventPublisher;
+
     @InjectMocks
     private OrderService orderService;
 
@@ -140,19 +143,19 @@ class OrderServiceTest {
                     .build();
 
             when(customerRepository.findById(1)).thenReturn(Optional.of(sampleCustomer));
-            when(productRepository.findById(101)).thenReturn(Optional.of(sampleProduct));
+            when(productRepository.findAllById(any())).thenReturn(List.of(sampleProduct));
+            when(productRepository.decreaseStockAtomic(eq(101), anyInt())).thenReturn(1);
             when(orderRepository.save(any(Order.class))).thenReturn(savedOrder);
-            when(ticketRepository.save(any(PurchaseTicket.class))).thenAnswer(invocation -> invocation.getArgument(0));
+            when(ticketRepository.saveAndFlush(any(PurchaseTicket.class))).thenAnswer(invocation -> invocation.getArgument(0));
             when(securityUtils.getCurrentUser()).thenReturn(sampleUser);
-            when(orderMapper.toResponse(savedOrder)).thenReturn(expectedResponse);
+            when(orderMapper.toResponse(any(Order.class))).thenReturn(expectedResponse);
 
             OrderResponse response = orderService.createOrder(request);
 
             assertThat(response).isNotNull();
             assertThat(response.getId()).isEqualTo(1001);
-            assertThat(sampleProduct.getStock()).isEqualTo(8);
-            verify(productRepository).save(sampleProduct);
-            verify(ticketRepository).save(any(PurchaseTicket.class));
+            verify(productRepository).decreaseStockAtomic(101, 2);
+            verify(ticketRepository).saveAndFlush(any(PurchaseTicket.class));
         }
 
         @Test
@@ -190,12 +193,11 @@ class OrderServiceTest {
                     .build();
 
             when(customerRepository.findById(1)).thenReturn(Optional.of(sampleCustomer));
-            when(productRepository.findById(101)).thenReturn(Optional.of(sampleProduct));
+            when(productRepository.findAllById(any())).thenReturn(List.of(sampleProduct));
 
             assertThatThrownBy(() -> orderService.createOrder(request))
                     .isInstanceOf(InsufficientStockException.class);
 
-            assertThat(sampleProduct.getStock()).isEqualTo(10);
             verify(orderRepository, never()).save(any());
         }
     }

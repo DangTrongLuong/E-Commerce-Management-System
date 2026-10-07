@@ -40,7 +40,6 @@ import lombok.RequiredArgsConstructor;
 import lombok.experimental.FieldDefaults;
 import lombok.extern.slf4j.Slf4j;
 
-import org.apache.coyote.BadRequestException;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -89,11 +88,10 @@ public class OrderService {
             }
             productQuantityMap.merge(item.getProductId(), item.getQuantity(), Integer::sum);
         }
-        Set<Integer> uniqueProductIds = productQuantityMap.keySet();
 
         // Nạp trước tất cả sp để xử lý
-        Map<Integer, Product> productMap = productRepository.findAllById(uniqueProductIds).stream()
-                .collect(Collectors.toMap(Product::getId, Function.identity()));
+        Map<Integer, Product> productMap = productRepository.findAllById(productQuantityMap.keySet()).stream()
+                .collect(Collectors.toMap(Product::getId, Function.identity())); // p -> p
 
         // Nhóm sản phẩm theo PO sở hữu (product.getOwner())
         Map<AppUser, Map<Product, Integer>> itemsByPoOwner = new HashMap<>();

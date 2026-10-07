@@ -18,6 +18,8 @@ import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
 import lombok.experimental.FieldDefaults;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -36,6 +38,7 @@ public class ProductService {
     ProductMapper productMapper;
     SecurityUtils securityUtils;
 
+    @CacheEvict(value = "products", allEntries = true)
     @Transactional(rollbackFor = Exception.class)
     public ProductResponse createProduct(ProductCreationRequest productCreationRequest) {
         boolean nameExists = productRepository
@@ -104,6 +107,7 @@ public class ProductService {
         return PageResponse.of(productResponsePage);
     }
 
+    @Cacheable(value = "products", key = "#id")
     public ProductResponse getProductById(int id) {
         Product product = productRepository.findById(id)
                 .orElseThrow(() -> ResourceNotFoundException.of("Product", "id", id));
@@ -111,6 +115,7 @@ public class ProductService {
         return productMapper.toResponse(product);
     }
 
+    @CacheEvict(value = "products", key = "#id")
     @Transactional(rollbackFor = Exception.class)
     public ProductResponse updateProduct(int id, ProductUpdateRequest productUpdateRequest) {
         Product product = productRepository.findById(id)
@@ -122,6 +127,7 @@ public class ProductService {
         return productMapper.toResponse(productRepository.save(product));
     }
 
+    @CacheEvict(value = "products", key = "#id")
     @Transactional(rollbackFor = Exception.class)
     public void deleteProduct(int id) {
         Product product = productRepository.findById(id)

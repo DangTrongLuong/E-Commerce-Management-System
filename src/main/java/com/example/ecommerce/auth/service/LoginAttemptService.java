@@ -13,13 +13,6 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 
-/**
- * Handles failed login attempt tracking in an isolated transaction.
- *
- * This must be a SEPARATE Spring bean (not a private method of AuthService)
- * so that Spring's AOP proxy intercepts the @Transactional(REQUIRES_NEW) call.
- * Self-invocation within the same bean bypasses AOP proxies.
- */
 @Slf4j
 @Service
 @RequiredArgsConstructor
@@ -30,14 +23,6 @@ public class LoginAttemptService {
     private static final int MAX_FAILED_ATTEMPTS = 5;
     private static final int LOCK_DURATION_MINUTES = 15;
 
-    /**
-     * Increments the failed login counter for the given user ID and locks the account
-     * if the threshold has been reached.
-     *
-     * Uses REQUIRES_NEW propagation so this update is ALWAYS committed to the DB,
-     * even if the caller's transaction rolls back (e.g. because AuthService.login()
-     * throws BadRequestExeption after calling this method).
-     */
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void recordFailedAttempt(Long userId) {
         userRepository.findById(userId).ifPresent(user -> {
