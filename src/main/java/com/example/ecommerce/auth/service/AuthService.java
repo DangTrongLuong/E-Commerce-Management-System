@@ -3,6 +3,7 @@ package com.example.ecommerce.auth.service;
 import com.example.ecommerce.auth.dto.LoginRequest;
 import com.example.ecommerce.auth.dto.RefreshTokenRequest;
 import com.example.ecommerce.auth.dto.RegisterRequest;
+import com.example.ecommerce.auth.dto.VerifyEmailRequest;
 import com.example.ecommerce.auth.dto.AuthResponse;
 import com.example.ecommerce.user.dto.UserResponse;
 import com.example.ecommerce.user.entity.AppUser;
@@ -12,8 +13,10 @@ import com.example.ecommerce.customer.enums.CustomerStatus;
 import com.example.ecommerce.user.enums.Role;
 import com.example.ecommerce.user.enums.UserStatus;
 import com.example.ecommerce.common.exception.AccountLockedException;
+import com.example.ecommerce.common.exception.AccountUnverifiedException;
 import com.example.ecommerce.common.exception.BadRequestExeption;
 import com.example.ecommerce.common.exception.DuplicateResourceException;
+import com.example.ecommerce.common.exception.ResourceNotFoundException;
 import com.example.ecommerce.common.exception.TokenExpiredException;
 import com.example.ecommerce.user.repository.AppUserRepository;
 import com.example.ecommerce.customer.repository.CustomerRepository;
@@ -44,6 +47,7 @@ public class AuthService {
     private final JwtUtil jwtUtil;
     private final SecurityUtils securityUtils;
     private final LoginAttemptService loginAttemptService;
+    private final EmailService emailService;
 
     @Transactional(rollbackFor = Exception.class)
     public UserResponse register(RegisterRequest request) {
@@ -55,20 +59,53 @@ public class AuthService {
                 .name(request.getName())
                 .email(request.getEmail())
                 .phone(request.getPhone())
-                .status(CustomerStatus.ACTIVE)
+                .status(CustomerStatus.INACTIVE)
                 .build();
 
         AppUser user = AppUser.builder()
                 .email(request.getEmail())
                 .passwordHash(passwordEncoder.encode(request.getPassword()))
                 .role(Role.USER)
-                .status(UserStatus.ACTIVE)
+                .status(UserStatus.UNVERIFIED)
                 .customer(customer)
                 .failedLoginCount(0)
                 .build();
 
         AppUser savedUser = userRepository.saveAndFlush(user);
 
+        String code = emailService.generateVerificationCode();
+        emailService.saveVerificationCode(savedUser.getEmail(), code);
+        emailService.sendVerificationEmail(savedUser.getEmail(), code);
+
+        return UserResponse.builder()
+                .id(savedUser.getId())
+                .email(savedUser.getEmail())
+                .role(savedUser.getRole())
+                .status(savedUser.getStatus())
+                .customerId(savedUser.getCustomer() != null ? Long.valueOf(savedUser.getCustomer().getId()) : null)
+                .createdAt(savedUser.getCreatedAt())
+                .build();
+    }
+
+    @Transactional(rollbackFor = Exception.class)
+    public UserResponse verifyEmail(VerifyEmailRequest request) {
+        AppUser user = userRepository.findByEmail(request.getEmail())
+                .orElseThrow(() -> new ResourceNotFoundException(
+                        "Tài khoản không tồn tại với email: " + request.getEmail()));
+        if (user.getStatus() == UserStatus.ACTIVE) {
+            throw new BadRequestExeption("Tài khoản đã được kích hoạt trước đó.");
+        }
+        boolean isValid = emailService.verifyCode(request.getEmail(), request.getCode());
+        if (!isValid) {
+            throw new BadRequestExeption("Mã xác thực không chính xác hoặc đã hết hạn");
+        }
+        user.setStatus(UserStatus.ACTIVE);
+        if (user.getCustomer() != null) {
+            user.getCustomer().setStatus(CustomerStatus.ACTIVE);
+            customerRepository.save(user.getCustomer());
+        }
+        AppUser savedUser = userRepository.save(user);
+        log.info("Kích hoạt tài khoản {} và thông tin Customer thành công", user.getEmail());
         return UserResponse.builder()
                 .id(savedUser.getId())
                 .email(savedUser.getEmail())
@@ -84,14 +121,23 @@ public class AuthService {
         AppUser user = userRepository.findByEmail(request.getEmail())
                 .orElseThrow(() -> new BadRequestExeption("Invalid email or password"));
 
-        if (user.getStatus() == UserStatus.LOCKED
-                || (user.getLockedUntil() != null && user.getLockedUntil().isAfter(LocalDateTime.now()))) {
-            throw new AccountLockedException("Account is locked due to too many failed login attempts");
-        }
-
         if (!passwordEncoder.matches(request.getPassword(), user.getPasswordHash())) {
             loginAttemptService.recordFailedAttempt(user.getId());
             throw new BadRequestExeption("Invalid email or password");
+        }
+
+        if (user.getStatus() == UserStatus.UNVERIFIED) {
+            throw new AccountUnverifiedException(
+                    "Tài khoản chưa được kích hoạt. Vui lòng kiểm tra email để nhập mã xác thực.");
+        }
+
+        if (user.getStatus() == UserStatus.LOCKED
+                || (user.getLockedUntil() != null && user.getLockedUntil().isAfter(LocalDateTime.now()))) {
+            throw new AccountLockedException("Tài khoản đã bị khóa do đăng nhập sai quá nhiều lần");
+        }
+
+        if (user.getStatus() == UserStatus.INACTIVE) {
+            throw new AccountLockedException("Tài khoản đã ngưng hoạt động");
         }
 
         user.setFailedLoginCount(0);
@@ -101,7 +147,6 @@ public class AuthService {
         String accessToken = jwtUtil.generateAccessToken(user);
         String refreshToken = jwtUtil.generateRefreshToken(user);
 
-        // Save refresh token hash
         RefreshToken tokenEntity = RefreshToken.builder()
                 .user(user)
                 .tokenHash(hashToken(refreshToken))

@@ -4,6 +4,9 @@ import com.example.ecommerce.common.exception.BadRequestExeption;
 import com.example.ecommerce.common.exception.ConflictException;
 import com.example.ecommerce.common.exception.InsufficientStockException;
 import com.example.ecommerce.common.exception.InvalidOrderStatusException;
+import com.example.ecommerce.common.exception.OrderNotEditableException;
+import com.example.ecommerce.common.exception.ProductInactiveException;
+import com.example.ecommerce.common.exception.QuantityLimitExceededException;
 import com.example.ecommerce.common.exception.ResourceNotFoundException;
 import com.example.ecommerce.customer.entity.Customer;
 import com.example.ecommerce.customer.enums.CustomerStatus;
@@ -26,6 +29,7 @@ import com.example.ecommerce.user.enums.Role;
 import com.example.ecommerce.order.dto.OrderCreationRequest;
 import com.example.ecommerce.order.dto.OrderItemRequest;
 import com.example.ecommerce.order.dto.OrderStatusUpdateRequest;
+import com.example.ecommerce.order.dto.UpdateOrderItemQuantityRequest;
 import com.example.ecommerce.order.dto.OrderResponse;
 import com.example.ecommerce.common.dto.PageResponse;
 import com.example.ecommerce.order.mapper.OrderMapper;
@@ -60,6 +64,7 @@ import java.util.stream.Collectors;
 @Slf4j
 @FieldDefaults(makeFinal = true, level = AccessLevel.PRIVATE)
 public class OrderService {
+
     OrderRepository orderRepository;
     CustomerRepository customerRepository;
     ProductRepository productRepository;
@@ -68,6 +73,10 @@ public class OrderService {
     OrderMapper orderMapper;
     SecurityUtils securityUtils;
     ApplicationEventPublisher eventPublisher;
+
+    // =========================================================================
+    // 1. TẠO ĐƠN HÀNG (ORDER CREATION)
+    // =========================================================================
 
     @Transactional(rollbackFor = Exception.class)
     public List<OrderResponse> createOrders(OrderCreationRequest request) {
@@ -211,11 +220,165 @@ public class OrderService {
         return orders.get(0);
     }
 
+    // =========================================================================
+    // 2. CHỈNH SỬA SẢN PHẨM TRONG ĐƠN HÀNG (REQ-01 ITEM MANAGEMENT)
+    // =========================================================================
+
+    /**
+     * @param orderId
+     * @param request
+     * @return
+     */
+    @Transactional(rollbackFor = Exception.class)
+    public OrderResponse addItemToOrder(Integer orderId, OrderItemRequest request) {
+        Order order = findOrderByIdOrThrow(orderId);
+
+        // kiểm tra quyền truy cập
+        verifyOrderVisibility(order);
+
+        // cho phép sửa đơn hàng PENDING
+        validateOrderIsPending(order);
+
+        Integer productId = request.getProductId();
+        Integer requestedQuantity = request.getQuantity();
+
+        Product product = findProductByIdOrThrow(productId);
+        if (requestedQuantity <= 0) {
+            throw new IllegalArgumentException("Số lượng thêm vào phải lớn hơn 0");
+        }
+
+        // Kiểm tra sp ACTIVE
+        if (product.getStatus() != ProductStatus.ACTIVE) {
+            throw new ProductInactiveException("Sản phẩm '" + product.getName() + "' đang ở trạng thái INACTIVE");
+        }
+
+        // Tìm item trong đơn hàng hiện có và gộp
+        Optional<OrderItem> existingItemOpt = order.getOrderItems().stream()
+                .filter(item -> Objects.equals(item.getProduct().getId(), productId))
+                .findFirst();
+
+        int currentQuantity = existingItemOpt.map(OrderItem::getQuantity).orElse(0);
+        int newTotalQuantity = currentQuantity + requestedQuantity;
+
+        // Kiểm tra giới hạn quantity(1-99)
+        if (newTotalQuantity > 99) {
+            throw new QuantityLimitExceededException(
+                    "Tổng số lượng sản phẩm '" + product.getName() + "' vượt quá giới hạn 99 (hiện tại: "
+                            + currentQuantity + ", cộng thêm: " + requestedQuantity + ")");
+        }
+
+        // trừ stock tồn kho
+        int updatedStock = productRepository.decreaseStockAtomic(productId, requestedQuantity);
+        if (updatedStock == 0) {
+            throw new InsufficientStockException("Sản phẩm '" + product.getName() + "' không đủ số lượng tồn kho");
+        }
+
+        // cập nhật hoặc thêm mới order item
+        if (existingItemOpt.isPresent()) {
+            OrderItem existingItem = existingItemOpt.get();
+            existingItem.setQuantity(newTotalQuantity);
+        } else {
+            OrderItem newItem = OrderItem.builder()
+                    .order(order)
+                    .product(product)
+                    .quantity(requestedQuantity)
+                    .unitPrice(product.getPrice())
+                    .build();
+
+            newItem.caculateSubtotal();
+            order.addItems(newItem);
+        }
+
+        // Tính lại tổng tiền đơn hàng
+        order.recaculateTotalAmount();
+        Order savedOrder = orderRepository.save(order);
+        log.info("Thêm sản phẩm #{} (số lượng {}) vào đơn hàng #{} thành công", productId, requestedQuantity, orderId);
+
+        return orderMapper.toResponse(savedOrder);
+    }
+
+    @Transactional(rollbackFor = Exception.class)
+    public OrderResponse updateOrderItemQuantity(Integer orderId, Integer productId,
+            UpdateOrderItemQuantityRequest request) {
+        Order order = findOrderByIdOrThrow(orderId);
+
+        verifyOrderVisibility(order);
+
+        validateOrderIsPending(order);
+
+        OrderItem existingItem = findOrderItemInOrderOrThrow(order, productId);
+
+        int oldQuantity = existingItem.getQuantity();
+        int newQuantity = request.getQuantity();
+        int diff = newQuantity - oldQuantity;
+
+        if (diff == 0)
+            return orderMapper.toResponse(order);
+
+        if (diff > 0) {
+            int updatedStock = productRepository.decreaseStockAtomic(productId, diff);
+            if (updatedStock == 0) {
+                throw new InsufficientStockException(
+                        "Sản phẩm '" + existingItem.getProduct().getName() + "' không đủ số lượng tồn kho");
+            }
+        } else {
+            productRepository.increaseStockAtomic(productId, Math.abs(diff));
+        }
+
+        existingItem.setQuantity(newQuantity);
+
+        order.recaculateTotalAmount();
+
+        Order saveOrder = orderRepository.save(order);
+
+        log.info("Cập nhật số lượng sản phẩm #{} trong đơn hàng #{} từ {} -> {} thành công", productId, orderId,
+                oldQuantity, newQuantity);
+        return orderMapper.toResponse(saveOrder);
+    }
+
+    @Transactional(rollbackFor = Exception.class)
+    public void deleteOrder(Integer orderId) {
+        Order order = findOrderByIdOrThrow(orderId);
+        verifyOrderVisibility(order);
+        validateOrderIsPending(order);
+
+        for (OrderItem item : order.getOrderItems()) {
+            productRepository.increaseStockAtomic(item.getProduct().getId(), item.getQuantity());
+        }
+
+        orderRepository.delete(order);
+
+        log.info("Đã xóa đơn hàng #{}", orderId);
+    }
+
+    @Transactional(rollbackFor = Exception.class)
+    public OrderResponse deleteOrderItem(Integer orderId, Integer productId) {
+        Order order = findOrderByIdOrThrow(orderId);
+
+        verifyOrderVisibility(order);
+
+        validateOrderIsPending(order);
+
+        OrderItem existingItem = findOrderItemInOrderOrThrow(order, productId);
+
+        productRepository.increaseStockAtomic(productId, existingItem.getQuantity());
+        order.getOrderItems().remove(existingItem);
+
+        order.recaculateTotalAmount();
+        Order savedOrder = orderRepository.save(order);
+
+        log.info("Đã xóa sản phẩm #{} khỏi đơn hàng #{}, hoàn lại stock {}", productId, orderId,
+                existingItem.getQuantity());
+        return orderMapper.toResponse(savedOrder);
+    }
+
+    // =========================================================================
+    // 3. TRUY VẤN ĐƠN HÀNG (ORDER QUERY & GETTERS)
+    // =========================================================================
+
     @Transactional(readOnly = true)
     public OrderResponse getOrderById(int id) {
-        Order order = orderRepository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Order not found with id: " + id));
-
+        Order order = findOrderByIdOrThrow(id);
         verifyOrderVisibility(order);
         return orderMapper.toResponse(order);
     }
@@ -263,10 +426,13 @@ public class OrderService {
         return PageResponse.of(orderPage.map(orderMapper::toResponse));
     }
 
+    // =========================================================================
+    // 4. CẬP NHẬT TRẠNG THÁI & HOÀN TIỀN (ORDER STATUS & REFUND WORKFLOW)
+    // =========================================================================
+
     @Transactional(rollbackFor = Exception.class)
     public OrderResponse updateOrderStatus(int id, OrderStatusUpdateRequest request) {
-        Order order = orderRepository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Order not found with id: " + id));
+        Order order = findOrderByIdOrThrow(id);
 
         OrderStatus currentStatus = order.getStatus();
         OrderStatus newStatus = request.getOrderStatus();
@@ -275,17 +441,9 @@ public class OrderService {
             return orderMapper.toResponse(order);
         }
 
-        // Section 6.3: Only allow PROCESSING -> COMPLETED via PATCH API
         if (currentStatus == OrderStatus.PROCESSING && newStatus == OrderStatus.COMPLETED) {
             AppUser currentUser = securityUtils.getCurrentUser();
-            if (currentUser.getRole() != Role.ADMIN) {
-                boolean isOwner = order.getOrderItems().stream()
-                        .anyMatch(item -> item.getProduct().getOwner() != null
-                                && item.getProduct().getOwner().getId().equals(currentUser.getId()));
-                if (!isOwner) {
-                    throw new AccessDeniedException("Forbidden: Caller is not the product owner of this order");
-                }
-            }
+            verifyProductOwnerOrAdmin(order, currentUser);
 
             order.setStatus(OrderStatus.COMPLETED);
             return orderMapper.toResponse(orderRepository.save(order));
@@ -295,31 +453,9 @@ public class OrderService {
                 + " is not allowed via PATCH API. Use Ticket API for approval workflow.");
     }
 
-    private void verifyOrderVisibility(Order order) {
-        AppUser currentUser = securityUtils.getCurrentUser();
-        if (currentUser.getRole() == Role.ADMIN) {
-            return;
-        }
-        if (currentUser.getRole() == Role.USER && order.getCustomer() != null && currentUser.getCustomer() != null
-                && order.getCustomer().getId() == currentUser.getCustomer().getId()) {
-            return;
-        }
-        if (currentUser.getRole() == Role.PRODUCT_OWNER) {
-            boolean isOwner = order.getOrderItems().stream()
-                    .anyMatch(item -> item.getProduct().getOwner() != null
-                            && item.getProduct().getOwner().getId().equals(currentUser.getId()));
-            if (isOwner) {
-                return;
-            }
-        }
-        // DD-07: Return 404 for unseen resources
-        throw new ResourceNotFoundException("Order not found with id: " + order.getId());
-    }
-
     @Transactional(rollbackFor = Exception.class)
     public OrderResponse requestRefund(int id, OrderRefundRequest request) {
-        Order order = orderRepository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Order not found with id: " + id));
+        Order order = findOrderByIdOrThrow(id);
 
         AppUser currentUser = securityUtils.getCurrentUser();
         if (currentUser.getRole() == Role.USER) {
@@ -360,23 +496,11 @@ public class OrderService {
 
     @Transactional(rollbackFor = Exception.class)
     public OrderResponse approveRefund(int id, OrderRefundActionRequest request) {
-        Order order = orderRepository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Order not found with id: " + id));
+        Order order = findOrderByIdOrThrow(id);
 
         AppUser currentUser = securityUtils.getCurrentUser();
-        if (currentUser.getRole() != Role.ADMIN) {
-            boolean isOwner = order.getOrderItems().stream()
-                    .anyMatch(item -> item.getProduct().getOwner() != null
-                            && item.getProduct().getOwner().getId().equals(currentUser.getId()));
-            if (!isOwner) {
-                throw new AccessDeniedException("Forbidden: Caller is not the product owner of this order");
-            }
-        }
-
-        if (order.getStatus() != OrderStatus.REFUND_REQUESTED) {
-            throw new InvalidOrderStatusException(
-                    "Order is not in REFUND_REQUESTED state. Current: " + order.getStatus());
-        }
+        verifyProductOwnerOrAdmin(order, currentUser);
+        validateRefundRequestedStatus(order);
 
         order.setStatus(OrderStatus.REFUNDED);
         order.setPaymentStatus(OrderPaymentStatus.REFUNDED);
@@ -408,25 +532,12 @@ public class OrderService {
 
     @Transactional(rollbackFor = Exception.class)
     public OrderResponse rejectRefund(int id, OrderRefundActionRequest request) {
-        Order order = orderRepository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Order not found with id: " + id));
+        Order order = findOrderByIdOrThrow(id);
 
         AppUser currentUser = securityUtils.getCurrentUser();
-        if (currentUser.getRole() != Role.ADMIN) {
-            boolean isOwner = order.getOrderItems().stream()
-                    .anyMatch(item -> item.getProduct().getOwner() != null
-                            && item.getProduct().getOwner().getId().equals(currentUser.getId()));
-            if (!isOwner) {
-                throw new AccessDeniedException("Forbidden: Caller is not the product owner of this order");
-            }
-        }
+        verifyProductOwnerOrAdmin(order, currentUser);
+        validateRefundRequestedStatus(order);
 
-        if (order.getStatus() != OrderStatus.REFUND_REQUESTED) {
-            throw new InvalidOrderStatusException(
-                    "Order is not in REFUND_REQUESTED state. Current: " + order.getStatus());
-        }
-
-        // Restore to PROCESSING if paid, otherwise COMPLETED
         if (order.getPaymentStatus() == OrderPaymentStatus.PAID) {
             order.setStatus(OrderStatus.PROCESSING);
         } else {
@@ -451,5 +562,72 @@ public class OrderService {
 
         log.info("Refund rejected for order #{} by PO/Admin #{}", id, currentUser.getId());
         return orderMapper.toResponse(savedOrder);
+    }
+
+    // =========================================================================
+    // 5. HÀM BỔ TRỢ (SECURITY & PRIVATE HELPERS)
+    // =========================================================================
+
+    private Order findOrderByIdOrThrow(int id) {
+        return orderRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Order not found with id: " + id));
+    }
+
+    private Product findProductByIdOrThrow(int id) {
+        return productRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Product not found with id: " + id));
+    }
+
+    private OrderItem findOrderItemInOrderOrThrow(Order order, int productId) {
+        return order.getOrderItems().stream()
+                .filter(item -> item.getProduct().getId() == productId)
+                .findFirst()
+                .orElseThrow(() -> new ResourceNotFoundException(
+                        "Sản phẩm #" + productId + " không có trong đơn hàng #" + order.getId()));
+    }
+
+    private void validateOrderIsPending(Order order) {
+        if (order.getStatus() != OrderStatus.PENDING) {
+            throw new OrderNotEditableException("Đơn hàng #" + order.getId()
+                    + " không thể chỉnh sửa vì đang ở trạng thái " + order.getStatus());
+        }
+    }
+
+    private void validateRefundRequestedStatus(Order order) {
+        if (order.getStatus() != OrderStatus.REFUND_REQUESTED) {
+            throw new InvalidOrderStatusException(
+                    "Order is not in REFUND_REQUESTED state. Current: " + order.getStatus());
+        }
+    }
+
+    private void verifyProductOwnerOrAdmin(Order order, AppUser currentUser) {
+        if (currentUser.getRole() != Role.ADMIN) {
+            boolean isOwner = order.getOrderItems().stream()
+                    .anyMatch(item -> item.getProduct().getOwner() != null
+                            && item.getProduct().getOwner().getId().equals(currentUser.getId()));
+            if (!isOwner) {
+                throw new AccessDeniedException("Forbidden: Caller is not the product owner of this order");
+            }
+        }
+    }
+
+    private void verifyOrderVisibility(Order order) {
+        AppUser currentUser = securityUtils.getCurrentUser();
+        if (currentUser.getRole() == Role.ADMIN) {
+            return;
+        }
+        if (currentUser.getRole() == Role.USER && order.getCustomer() != null && currentUser.getCustomer() != null
+                && order.getCustomer().getId() == currentUser.getCustomer().getId()) {
+            return;
+        }
+        if (currentUser.getRole() == Role.PRODUCT_OWNER) {
+            boolean isOwner = order.getOrderItems().stream()
+                    .anyMatch(item -> item.getProduct().getOwner() != null
+                            && item.getProduct().getOwner().getId().equals(currentUser.getId()));
+            if (isOwner) {
+                return;
+            }
+        }
+        throw new AccessDeniedException("Bạn không có quyền truy cập hoặc thao tác trên đơn hàng #" + order.getId());
     }
 }

@@ -38,6 +38,11 @@ public class OrderItem {
     @Column(name = "subtotal", nullable = false, precision = 15, scale = 2)
     private BigDecimal subTotal;
 
+    public void setQuantity(int quantity) {
+        this.quantity = quantity;
+        this.caculateSubtotal();
+    }
+
     public void caculateSubtotal() {
         this.subTotal = unitPrice.multiply(BigDecimal.valueOf(quantity));
     }

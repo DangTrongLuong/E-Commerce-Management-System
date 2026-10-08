@@ -3,6 +3,7 @@ package com.example.ecommerce.auth.controller;
 import com.example.ecommerce.auth.dto.LoginRequest;
 import com.example.ecommerce.auth.dto.RefreshTokenRequest;
 import com.example.ecommerce.auth.dto.RegisterRequest;
+import com.example.ecommerce.auth.dto.VerifyEmailRequest;
 import com.example.ecommerce.common.dto.ApiResponse;
 import com.example.ecommerce.auth.dto.AuthResponse;
 import com.example.ecommerce.user.dto.UserResponse;
@@ -42,6 +43,15 @@ public class AuthController {
         return ResponseEntity.ok(ApiResponse.success("Login successful", response));
     }
 
+    @PostMapping("/verify-email")
+    @PreAuthorize("permitAll()")
+    @Operation(summary = "Xác thực mã OTP 6 số để kích hoạt tài khoản (Public)")
+    public ResponseEntity<ApiResponse<UserResponse>> verifyEmail(@Valid @RequestBody VerifyEmailRequest request) {
+        UserResponse response = authService.verifyEmail(request);
+        return ResponseEntity
+                .ok(ApiResponse.success("Kích hoạt tài khoản thành công! Bạn có thể đăng nhập ngay.", response));
+    }
+
     @PostMapping("/refresh")
     @PreAuthorize("permitAll()")
     @Operation(summary = "Refresh access token (Public)")
@@ -65,4 +75,5 @@ public class AuthController {
         UserResponse response = authService.getCurrentUserInfo();
         return ResponseEntity.ok(ApiResponse.success("Current user info fetched successfully", response));
     }
+
 }

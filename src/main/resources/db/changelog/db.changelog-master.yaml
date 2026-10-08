@@ -12,9 +12,9 @@ databaseChangeLog:
   - include:
       file: changes/004-create-order-item-table.yaml
       relativeToChangelogFile: true
-  - include:
-      file: changes/005-create-user-table.yaml
-      relativeToChangelogFile: true
+#   - include:
+#       file: changes/005-create-user-table.yaml
+#       relativeToChangelogFile: true
   - include:
       file: changes/006-create-payment-transaction-table.yaml
       relativeToChangelogFile: true
@@ -40,7 +40,13 @@ databaseChangeLog:
       file: changes/016-alter-app-user-add-token-version.yaml
       relativeToChangelogFile: true
   - include:
-      file: changes/900-seed-dev-users.yaml
+      file: changes/017-add-unique-constraint-order-item.yaml
       relativeToChangelogFile: true
+  - include:
+      file: changes/018-rename-app-user-to-users.yaml
+      relativeToChangelogFile: true
+#   - include:
+#       file: changes/900-seed-dev-users.yaml
+#       relativeToChangelogFile: true
 
 

@@ -9,12 +9,10 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 @Data
-@AllArgsConstructor
-@NoArgsConstructor
 @Builder
-public class OrderItemRequest {
-    @NotNull(message = "productId không được để trống")
-    private Integer productId;
+@NoArgsConstructor
+@AllArgsConstructor
+public class UpdateOrderItemQuantityRequest {
 
     @NotNull(message = "quantity không được để trống")
     @Min(value = 1, message = "quantity phải từ 1 đến 99")

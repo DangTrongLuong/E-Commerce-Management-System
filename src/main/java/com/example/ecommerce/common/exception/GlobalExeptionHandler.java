@@ -51,6 +51,18 @@ public class GlobalExeptionHandler {
         return build(HttpStatus.BAD_REQUEST, "BAD_REQUEST", ex.getMessage());
     }
 
+    @ExceptionHandler(QuantityLimitExceededException.class)
+    public ResponseEntity<ApiResponse<Object>> handleQuantityLimitExceeded(QuantityLimitExceededException ex) {
+        log.warn("Quantity limit exceeded: {}", ex.getMessage());
+        return build(HttpStatus.BAD_REQUEST, "QUANTITY_LIMIT_EXCEEDED", ex.getMessage());
+    }
+
+    @ExceptionHandler(ProductInactiveException.class)
+    public ResponseEntity<ApiResponse<Object>> handleProductInactive(ProductInactiveException ex) {
+        log.warn("Product inactive: {}", ex.getMessage());
+        return build(HttpStatus.BAD_REQUEST, "PRODUCT_INACTIVE", ex.getMessage());
+    }
+
     @ExceptionHandler(MixedOwnerOrderException.class)
     public ResponseEntity<ApiResponse<Object>> handleMixedOwner(MixedOwnerOrderException ex) {
         log.warn("Mixed owner order error: {}", ex.getMessage());
@@ -71,7 +83,8 @@ public class GlobalExeptionHandler {
     // 403 FORBIDDEN
     @ExceptionHandler(AccessDeniedException.class)
     public ResponseEntity<ApiResponse<Object>> handleAccessDenied(AccessDeniedException ex) {
-        return build(HttpStatus.FORBIDDEN, "FORBIDDEN", "Access denied");
+        String message = (ex.getMessage() != null && !ex.getMessage().isBlank()) ? ex.getMessage() : "Access denied";
+        return build(HttpStatus.FORBIDDEN, "FORBIDDEN", message);
     }
 
     @ExceptionHandler(AccountLockedException.class)
@@ -82,6 +95,12 @@ public class GlobalExeptionHandler {
     @ExceptionHandler(SelfApprovalNotAllowedException.class)
     public ResponseEntity<ApiResponse<Object>> handleSelfApproval(SelfApprovalNotAllowedException ex) {
         return build(HttpStatus.FORBIDDEN, "SELF_APPROVAL_NOT_ALLOWED", ex.getMessage());
+    }
+
+    @ExceptionHandler(AccountUnverifiedException.class)
+    public ResponseEntity<ApiResponse<Object>> handleAccountUnverified(AccountUnverifiedException ex) {
+        log.warn("Account unverified attempt: {}", ex.getMessage());
+        return build(HttpStatus.FORBIDDEN, "ACCOUNT_UNVERIFIED", ex.getMessage());
     }
 
     // 404 NOT FOUND
@@ -125,12 +144,18 @@ public class GlobalExeptionHandler {
     @ExceptionHandler(OptimisticLockingFailureException.class)
     public ResponseEntity<ApiResponse<Object>> handleOptimisticLock(OptimisticLockingFailureException ex) {
         log.warn("Concurrent update conflict: {}", ex.getMessage());
-        return build(HttpStatus.CONFLICT, "CONCURRENT_UPDATE", "Resource was updated concurrently by another transaction");
+        return build(HttpStatus.CONFLICT, "CONCURRENT_MODIFICATION",
+                "Đơn hàng hoặc dữ liệu đã bị chỉnh sửa đồng thời bởi một giao dịch khác. Vui lòng thử lại.");
     }
 
     @ExceptionHandler(DataIntegrityViolationException.class)
     public ResponseEntity<ApiResponse<Object>> handleDataIntegrity(DataIntegrityViolationException ex) {
-        log.error("Data integrity violation", ex);
+        log.error("Data integrity violation: {}", ex.getMessage());
+        String msg = ex.getMessage();
+        if (msg != null && (msg.contains("UK_ORDER_ITEM_ORDER_PRODUCT") || msg.contains("order_items"))) {
+            return build(HttpStatus.CONFLICT, "CONCURRENT_MODIFICATION",
+                    "Sản phẩm này đã được thêm vào đơn hàng bởi một giao dịch khác cùng thời điểm.");
+        }
         return build(HttpStatus.CONFLICT, "DATA_INTEGRITY", "Data constraint violation");
     }
 
@@ -140,6 +165,12 @@ public class GlobalExeptionHandler {
         return build(HttpStatus.CONFLICT, "CONFLICT", ex.getMessage());
     }
 
+    @ExceptionHandler(OrderNotEditableException.class)
+    public ResponseEntity<ApiResponse<Object>> handleOrderNotEditable(OrderNotEditableException ex) {
+        log.warn("Order not editable: {}", ex.getMessage());
+        return build(HttpStatus.CONFLICT, "ORDER_NOT_EDITABLE", ex.getMessage());
+    }
+
     // 500 INTERNAL ERROR
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ApiResponse<Object>> handleGenericException(Exception ex) {
@@ -147,11 +178,8 @@ public class GlobalExeptionHandler {
         return build(HttpStatus.INTERNAL_SERVER_ERROR, "INTERNAL_ERROR", "An unexpected error occurred");
     }
 
-
-
     private ResponseEntity<ApiResponse<Object>> build(HttpStatus status, String code, String message) {
         return ResponseEntity.status(status).body(ApiResponse.error(code, message));
     }
-
 
 }

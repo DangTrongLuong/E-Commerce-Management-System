@@ -21,7 +21,7 @@ import org.springframework.stereotype.Service;
 import java.io.File;
 
 @Slf4j
-@Service
+@Service("notificationEmailService")
 @RequiredArgsConstructor
 public class EmailService {
 

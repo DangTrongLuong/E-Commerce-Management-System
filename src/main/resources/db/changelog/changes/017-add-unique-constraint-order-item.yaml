@@ -1,0 +1,9 @@
+databaseChangeLog:
+  - changeSet:
+      id: 017-add-unique-constraint-order-item
+      author: dev
+      changes:
+        - addUniqueConstraint:
+            tableName: order_items
+            columnNames: order_id, product_id
+            constraintName: UK_ORDER_ITEM_ORDER_PRODUCT

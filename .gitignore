@@ -39,7 +39,6 @@ bin/
 # Bỏ qua tất cả file Markdown (.md)
 *.md
 *.csv
-
 *.txt
 
 # Ngoại trừ file README.md (không phân biệt hoa thường)
