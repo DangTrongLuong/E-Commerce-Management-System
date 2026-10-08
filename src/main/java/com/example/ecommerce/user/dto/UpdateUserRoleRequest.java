@@ -13,6 +13,6 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor
 public class UpdateUserRoleRequest {
 
-    @NotNull(message = "Role is required")
+    @NotNull(message = "Vai trò tài khoản không được để trống")
     private Role role;
 }

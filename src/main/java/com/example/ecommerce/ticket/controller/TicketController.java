@@ -34,7 +34,7 @@ public class TicketController {
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size
     ) {
-        return ResponseEntity.ok(ApiResponse.success("Fetched my tickets successfully", ticketService.getMyTickets(status, page, size)));
+        return ResponseEntity.ok(ApiResponse.success("Lấy danh sách vé đã gửi thành công", ticketService.getMyTickets(status, page, size)));
     }
 
     @GetMapping("/inbox")
@@ -45,21 +45,21 @@ public class TicketController {
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size
     ) {
-        return ResponseEntity.ok(ApiResponse.success("Fetched inbox tickets successfully", ticketService.getInboxTickets(status, page, size)));
+        return ResponseEntity.ok(ApiResponse.success("Lấy danh sách vé chờ xử lý thành công", ticketService.getInboxTickets(status, page, size)));
     }
 
     @GetMapping("/{id}")
     @PreAuthorize("isAuthenticated()")
     @Operation(summary = "Get ticket details by ID")
     public ResponseEntity<ApiResponse<TicketResponse>> getTicketById(@PathVariable("id") Long id) {
-        return ResponseEntity.ok(ApiResponse.success("Fetched ticket details successfully", ticketService.getTicketById(id)));
+        return ResponseEntity.ok(ApiResponse.success("Lấy thông tin chi tiết vé thành công", ticketService.getTicketById(id)));
     }
 
     @GetMapping("/{id}/history")
     @PreAuthorize("isAuthenticated()")
     @Operation(summary = "Get ticket audit history")
     public ResponseEntity<ApiResponse<List<TicketHistoryResponse>>> getTicketHistory(@PathVariable("id") Long id) {
-        return ResponseEntity.ok(ApiResponse.success("Fetched ticket history successfully", ticketService.getTicketHistory(id)));
+        return ResponseEntity.ok(ApiResponse.success("Lấy lịch sử vé thành công", ticketService.getTicketHistory(id)));
     }
 
     @PostMapping("/{id}/approve")
@@ -69,7 +69,7 @@ public class TicketController {
             @PathVariable("id") Long id,
             @RequestBody(required = false) TicketActionRequest request
     ) {
-        return ResponseEntity.ok(ApiResponse.success("Ticket approved successfully", ticketService.approveTicket(id, request)));
+        return ResponseEntity.ok(ApiResponse.success("Phê duyệt vé thành công", ticketService.approveTicket(id, request)));
     }
 
     @PostMapping("/{id}/reject")
@@ -79,7 +79,7 @@ public class TicketController {
             @PathVariable("id") Long id,
             @Valid @RequestBody TicketActionRequest request
     ) {
-        return ResponseEntity.ok(ApiResponse.success("Ticket rejected successfully", ticketService.rejectTicket(id, request)));
+        return ResponseEntity.ok(ApiResponse.success("Từ chối vé thành công", ticketService.rejectTicket(id, request)));
     }
 
     @PostMapping("/{id}/return")
@@ -89,7 +89,7 @@ public class TicketController {
             @PathVariable("id") Long id,
             @Valid @RequestBody TicketActionRequest request
     ) {
-        return ResponseEntity.ok(ApiResponse.success("Ticket returned successfully", ticketService.returnTicket(id, request)));
+        return ResponseEntity.ok(ApiResponse.success("Yêu cầu chỉnh sửa vé thành công", ticketService.returnTicket(id, request)));
     }
 
     @PutMapping("/{id}")
@@ -99,7 +99,7 @@ public class TicketController {
             @PathVariable("id") Long id,
             @Valid @RequestBody List<OrderItemRequest> items
     ) {
-        return ResponseEntity.ok(ApiResponse.success("Ticket items updated successfully", ticketService.updateTicketItems(id, items)));
+        return ResponseEntity.ok(ApiResponse.success("Cập nhật danh sách sản phẩm trong vé thành công", ticketService.updateTicketItems(id, items)));
     }
 
     @PostMapping("/{id}/resubmit")
@@ -109,7 +109,7 @@ public class TicketController {
             @PathVariable("id") Long id,
             @RequestBody(required = false) TicketActionRequest request
     ) {
-        return ResponseEntity.ok(ApiResponse.success("Ticket resubmitted successfully", ticketService.resubmitTicket(id, request)));
+        return ResponseEntity.ok(ApiResponse.success("Gửi lại vé phê duyệt thành công", ticketService.resubmitTicket(id, request)));
     }
 
     @PostMapping("/{id}/cancel")
@@ -119,6 +119,6 @@ public class TicketController {
             @PathVariable("id") Long id,
             @RequestBody(required = false) TicketActionRequest request
     ) {
-        return ResponseEntity.ok(ApiResponse.success("Ticket cancelled successfully", ticketService.cancelTicket(id, request)));
+        return ResponseEntity.ok(ApiResponse.success("Hủy vé phê duyệt thành công", ticketService.cancelTicket(id, request)));
     }
 }

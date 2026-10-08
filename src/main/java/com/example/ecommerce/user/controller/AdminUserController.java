@@ -29,7 +29,7 @@ public class AdminUserController {
     public ResponseEntity<ApiResponse<UserResponse>> createUser(@Valid @RequestBody CreateAdminUserRequest request) {
         UserResponse response = adminUserService.createUser(request);
         return ResponseEntity.status(HttpStatus.CREATED)
-                .body(ApiResponse.success("User created successfully", response));
+                .body(ApiResponse.success("Tạo tài khoản người dùng thành công", response));
     }
 
     @PatchMapping("/{id}/role")
@@ -39,7 +39,7 @@ public class AdminUserController {
             @Valid @RequestBody UpdateUserRoleRequest request
     ) {
         UserResponse response = adminUserService.updateUserRole(id, request);
-        return ResponseEntity.ok(ApiResponse.success("User role updated successfully", response));
+        return ResponseEntity.ok(ApiResponse.success("Cập nhật vai trò người dùng thành công", response));
     }
 
     @PatchMapping("/{id}/status")
@@ -49,6 +49,6 @@ public class AdminUserController {
             @Valid @RequestBody UpdateUserStatusRequest request
     ) {
         UserResponse response = adminUserService.updateUserStatus(id, request);
-        return ResponseEntity.ok(ApiResponse.success("User status updated successfully", response));
+        return ResponseEntity.ok(ApiResponse.success("Cập nhật trạng thái người dùng thành công", response));
     }
 }

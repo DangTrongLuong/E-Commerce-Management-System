@@ -31,11 +31,11 @@ public class AdminUserService {
     @Transactional(rollbackFor = Exception.class)
     public UserResponse createUser(CreateAdminUserRequest request) {
         if (userRepository.existsByEmail(request.getEmail())) {
-            throw new DuplicateResourceException("Email already exists");
+            throw new DuplicateResourceException("Email đã tồn tại trên hệ thống");
         }
 
         if (request.getRole() == Role.USER) {
-            throw new BadRequestExeption("Admin user endpoint only creates PRODUCT_OWNER or ADMIN");
+            throw new BadRequestExeption("API quản trị chỉ hỗ trợ tạo tài khoản PRODUCT_OWNER hoặc ADMIN");
         }
 
         AppUser user = AppUser.builder()
@@ -53,13 +53,13 @@ public class AdminUserService {
     @Transactional(rollbackFor = Exception.class)
     public UserResponse updateUserRole(Long userId, UpdateUserRoleRequest request) {
         AppUser user = userRepository.findById(userId)
-                .orElseThrow(() -> new ResourceNotFoundException("User not found with id: " + userId));
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy người dùng với mã ID: " + userId));
 
         // Protect last active admin
         if (user.getRole() == Role.ADMIN && request.getRole() != Role.ADMIN) {
             long activeAdminCount = userRepository.countByRoleAndStatus(Role.ADMIN, UserStatus.ACTIVE);
             if (activeAdminCount <= 1) {
-                throw new ConflictException("Cannot demote the last active ADMIN");
+                throw new ConflictException("Không thể hạ cấp tài khoản ADMIN đang hoạt động duy nhất");
             }
         }
 
@@ -75,13 +75,13 @@ public class AdminUserService {
     @Transactional(rollbackFor = Exception.class)
     public UserResponse updateUserStatus(Long userId, UpdateUserStatusRequest request) {
         AppUser user = userRepository.findById(userId)
-                .orElseThrow(() -> new ResourceNotFoundException("User not found with id: " + userId));
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy người dùng với mã ID: " + userId));
 
         // Protect last active admin
         if (user.getRole() == Role.ADMIN && request.getStatus() != UserStatus.ACTIVE) {
             long activeAdminCount = userRepository.countByRoleAndStatus(Role.ADMIN, UserStatus.ACTIVE);
             if (activeAdminCount <= 1) {
-                throw new ConflictException("Cannot lock or deactivate the last active ADMIN");
+                throw new ConflictException("Không thể khóa hoặc ngưng hoạt động tài khoản ADMIN đang hoạt động duy nhất");
             }
         }
 

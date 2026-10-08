@@ -32,7 +32,7 @@ public class AuthController {
         UserResponse response = authService.register(request);
         return ResponseEntity
                 .status(HttpStatus.CREATED)
-                .body(ApiResponse.success("Registration successful", response));
+                .body(ApiResponse.success("Đăng ký tài khoản thành công", response));
     }
 
     @PostMapping("/login")
@@ -40,7 +40,7 @@ public class AuthController {
     @Operation(summary = "Login to obtain JWT access & refresh tokens (Public)")
     public ResponseEntity<ApiResponse<AuthResponse>> login(@Valid @RequestBody LoginRequest request) {
         AuthResponse response = authService.login(request);
-        return ResponseEntity.ok(ApiResponse.success("Login successful", response));
+        return ResponseEntity.ok(ApiResponse.success("Đăng nhập thành công", response));
     }
 
     @PostMapping("/verify-email")
@@ -57,7 +57,7 @@ public class AuthController {
     @Operation(summary = "Refresh access token (Public)")
     public ResponseEntity<ApiResponse<AuthResponse>> refreshToken(@Valid @RequestBody RefreshTokenRequest request) {
         AuthResponse response = authService.refreshToken(request);
-        return ResponseEntity.ok(ApiResponse.success("Token refresh successful", response));
+        return ResponseEntity.ok(ApiResponse.success("Làm mới token thành công", response));
     }
 
     @PostMapping("/logout")
@@ -65,7 +65,7 @@ public class AuthController {
     @Operation(summary = "Logout user and revoke refresh token")
     public ResponseEntity<ApiResponse<Void>> logout(@RequestBody(required = false) RefreshTokenRequest request) {
         authService.logout(request);
-        return ResponseEntity.ok(ApiResponse.success("Logout successful", null));
+        return ResponseEntity.ok(ApiResponse.success("Đăng xuất thành công", null));
     }
 
     @GetMapping("/me")
@@ -73,7 +73,7 @@ public class AuthController {
     @Operation(summary = "Get current authenticated user info")
     public ResponseEntity<ApiResponse<UserResponse>> getCurrentUser() {
         UserResponse response = authService.getCurrentUserInfo();
-        return ResponseEntity.ok(ApiResponse.success("Current user info fetched successfully", response));
+        return ResponseEntity.ok(ApiResponse.success("Lấy thông tin người dùng thành công", response));
     }
 
 }

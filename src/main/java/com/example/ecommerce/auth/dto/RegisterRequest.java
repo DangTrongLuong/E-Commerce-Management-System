@@ -1,5 +1,6 @@
 package com.example.ecommerce.auth.dto;
 
+import com.example.ecommerce.common.validation.UniquePhone;
 import com.example.ecommerce.common.validation.UniqueEmail;
 import com.example.ecommerce.common.validation.ValidPassword;
 import jakarta.validation.constraints.NotBlank;
@@ -35,5 +36,6 @@ public class RegisterRequest {
             regexp = "^0\\d{9}$",
             message = "Số điện thoại phải bắt đầu bằng số 0 và có đủ 10 chữ số"
     )
+    @UniquePhone(message = "Số điện thoại đã tồn tại trên hệ thống")
     private String phone;
 }

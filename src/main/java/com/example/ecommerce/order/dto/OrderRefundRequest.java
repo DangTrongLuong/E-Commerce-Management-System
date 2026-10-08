@@ -8,6 +8,6 @@ import lombok.*;
 @NoArgsConstructor
 @AllArgsConstructor
 public class OrderRefundRequest {
-    @NotBlank(message = "Reason is required for refund request")
+    @NotBlank(message = "Vui lòng nhập lý do yêu cầu hoàn tiền")
     private String reason;
 }

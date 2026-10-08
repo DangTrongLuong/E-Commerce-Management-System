@@ -13,11 +13,11 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor
 @Builder
 public class OrderItemRequest {
-    @NotNull(message = "productId không được để trống")
+    @NotNull(message = "Mã sản phẩm không được để trống")
     private Integer productId;
 
-    @NotNull(message = "quantity không được để trống")
-    @Min(value = 1, message = "quantity phải từ 1 đến 99")
-    @Max(value = 99, message = "quantity phải từ 1 đến 99")
+    @NotNull(message = "Số lượng sản phẩm không được để trống")
+    @Min(value = 1, message = "Số lượng sản phẩm phải từ 1 đến 99")
+    @Max(value = 99, message = "Số lượng sản phẩm phải từ 1 đến 99")
     private Integer quantity;
 }

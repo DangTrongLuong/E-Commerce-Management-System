@@ -28,12 +28,12 @@ public class NotificationController {
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size
     ) {
-        return ResponseEntity.ok(ApiResponse.success("Fetched notifications successfully", notificationService.getMyNotifications(page, size)));
+        return ResponseEntity.ok(ApiResponse.success("Lấy danh sách thông báo thành công", notificationService.getMyNotifications(page, size)));
     }
 
     @PatchMapping("/{id}/read")
     @Operation(summary = "Mark notification as read")
     public ResponseEntity<ApiResponse<NotificationResponse>> markAsRead(@PathVariable("id") Long id) {
-        return ResponseEntity.ok(ApiResponse.success("Notification marked as read", notificationService.markAsRead(id)));
+        return ResponseEntity.ok(ApiResponse.success("Đánh dấu thông báo đã đọc thành công", notificationService.markAsRead(id)));
     }
 }

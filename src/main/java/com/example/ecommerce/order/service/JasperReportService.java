@@ -108,7 +108,7 @@ public class JasperReportService {
             return pdfBytes;
         } catch (Exception e) {
             log.error("Error generating JasperReport PDF for order #{}", orderId, e);
-            throw new RuntimeException("Failed to generate JasperReport PDF: " + e.getMessage(), e);
+            throw new RuntimeException("Không thể tạo file hóa đơn PDF: " + e.getMessage(), e);
         }
     }
 

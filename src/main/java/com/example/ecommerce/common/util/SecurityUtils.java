@@ -19,12 +19,12 @@ public class SecurityUtils {
     public AppUser getCurrentUser() {
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
         if (authentication == null || !authentication.isAuthenticated() || authentication.getPrincipal().equals("anonymousUser")) {
-            throw new AccessDeniedException("Unauthenticated caller");
+            throw new AccessDeniedException("Yêu cầu xác thực tài khoản đăng nhập");
         }
 
         String email = authentication.getName();
         return userRepository.findByEmail(email)
-                .orElseThrow(() -> new ResourceNotFoundException("User not found: " + email));
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy người dùng với email: " + email));
     }
 
     public boolean hasRole(Role role) {
@@ -40,6 +40,6 @@ public class SecurityUtils {
         if (user.getRole() == Role.USER && user.getCustomer() != null && user.getCustomer().getId() == customerId.intValue()) {
             return;
         }
-        throw new AccessDeniedException("Forbidden: Caller does not own customer resource");
+        throw new AccessDeniedException("Bạn không có quyền truy cập thông tin của khách hàng này");
     }
 }

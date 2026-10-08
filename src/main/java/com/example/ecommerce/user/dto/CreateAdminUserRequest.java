@@ -16,14 +16,14 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor
 public class CreateAdminUserRequest {
 
-    @NotBlank(message = "Email is required")
-    @Email(message = "Email invalid")
+    @NotBlank(message = "Email không được để trống")
+    @Email(message = "Email không đúng định dạng")
     private String email;
 
-    @NotBlank(message = "Password is required")
-    @Size(min = 8, message = "Password must be at least 8 characters")
+    @NotBlank(message = "Mật khẩu không được để trống")
+    @Size(min = 8, message = "Mật khẩu phải chứa ít nhất 8 ký tự")
     private String password;
 
-    @NotNull(message = "Role is required")
+    @NotNull(message = "Vai trò tài khoản không được để trống")
     private Role role;
 }

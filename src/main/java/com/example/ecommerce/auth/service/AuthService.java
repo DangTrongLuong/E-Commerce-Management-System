@@ -52,7 +52,10 @@ public class AuthService {
     @Transactional(rollbackFor = Exception.class)
     public UserResponse register(RegisterRequest request) {
         if (userRepository.existsByEmail(request.getEmail()) || customerRepository.existsByEmail(request.getEmail())) {
-            throw new DuplicateResourceException("Email already in use");
+            throw new DuplicateResourceException("Email này đã được sử dụng trên hệ thống");
+        }
+        if (request.getPhone() != null && customerRepository.existsByPhone(request.getPhone())) {
+            throw new DuplicateResourceException("Số điện thoại này đã được đăng ký trên hệ thống");
         }
 
         Customer customer = Customer.builder()
@@ -119,11 +122,11 @@ public class AuthService {
     @Transactional(rollbackFor = Exception.class)
     public AuthResponse login(LoginRequest request) {
         AppUser user = userRepository.findByEmail(request.getEmail())
-                .orElseThrow(() -> new BadRequestExeption("Invalid email or password"));
+                .orElseThrow(() -> new BadRequestExeption("Email hoặc mật khẩu không chính xác"));
 
         if (!passwordEncoder.matches(request.getPassword(), user.getPasswordHash())) {
             loginAttemptService.recordFailedAttempt(user.getId());
-            throw new BadRequestExeption("Invalid email or password");
+            throw new BadRequestExeption("Email hoặc mật khẩu không chính xác");
         }
 
         if (user.getStatus() == UserStatus.UNVERIFIED) {
@@ -179,20 +182,20 @@ public class AuthService {
     public AuthResponse refreshToken(RefreshTokenRequest request) {
         String refreshToken = request.getRefreshToken();
         if (!jwtUtil.validateToken(refreshToken) || !"refresh".equals(jwtUtil.extractType(refreshToken))) {
-            throw new BadRequestExeption("Invalid refresh token");
+            throw new BadRequestExeption("Mã làm mới (Refresh token) không hợp lệ");
         }
 
         String hash = hashToken(refreshToken);
         RefreshToken tokenEntity = refreshTokenRepository.findByTokenHash(hash)
-                .orElseThrow(() -> new BadRequestExeption("Refresh token revoked or invalid"));
+                .orElseThrow(() -> new BadRequestExeption("Mã làm mới đã bị thu hồi hoặc không hợp lệ"));
 
         if (tokenEntity.isRevoked() || tokenEntity.getExpiresAt().isBefore(LocalDateTime.now())) {
-            throw new TokenExpiredException("Refresh token is expired");
+            throw new TokenExpiredException("Mã làm mới đã hết hạn. Vui lòng đăng nhập lại.");
         }
 
         AppUser user = tokenEntity.getUser();
         if (user.getStatus() != UserStatus.ACTIVE) {
-            throw new AccountLockedException("Account is locked or inactive");
+            throw new AccountLockedException("Tài khoản đã bị khóa hoặc ngừng hoạt động");
         }
 
         // Token rotation: revoke old token

@@ -60,7 +60,7 @@ public class TicketStateMachine {
                         cancelOrderAndRefundStock(ticket.getOrder(), "Ticket expired (SLA exceeded)");
                     }
                     default -> throw new InvalidTicketStatusException(
-                            "Cannot perform action " + action + " on ticket status " + current);
+                            "Không thể thực hiện hành động " + action + " khi vé phê duyệt đang ở trạng thái " + current);
                 }
             }
             case RETURNED -> {
@@ -81,12 +81,12 @@ public class TicketStateMachine {
                         cancelOrderAndRefundStock(ticket.getOrder(), "Ticket expired (SLA exceeded)");
                     }
                     default -> throw new InvalidTicketStatusException(
-                            "Cannot perform action " + action + " on ticket status " + current);
+                            "Không thể thực hiện hành động " + action + " khi vé phê duyệt đang ở trạng thái " + current);
                 }
             }
             case APPROVED, REJECTED, CANCELLED, EXPIRED -> throw new InvalidTicketStatusException(
-                    "Ticket is in terminal status " + current + " and cannot be modified");
-            default -> throw new InvalidTicketStatusException("Unknown ticket status: " + current);
+                    "Vé phê duyệt đang ở trạng thái kết thúc (" + current + ") và không thể thay đổi");
+            default -> throw new InvalidTicketStatusException("Trạng thái vé phê duyệt không hợp lệ: " + current);
         }
 
         ticket.setStatus(nextStatus);
@@ -95,7 +95,7 @@ public class TicketStateMachine {
 
     private void validateComment(String comment) {
         if (comment == null || comment.trim().length() < 10 || comment.trim().length() > 500) {
-            throw new IllegalArgumentException("Comment is required for REJECT and RETURN (length 10-500 characters)");
+            throw new IllegalArgumentException("Yêu cầu nhập ghi chú khi TỪ CHỐI hoặc YÊU CẦU SỬA (độ dài từ 10 đến 500 ký tự)");
         }
     }
 

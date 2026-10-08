@@ -54,7 +54,7 @@ public class OrderController {
         log.info("Successfully created {} order(s)", orderResponses.size());
         return ResponseEntity
                 .status(HttpStatus.CREATED)
-                .body(ApiResponse.success("Order(s) created successfully", orderResponses));
+                .body(ApiResponse.success("Tạo đơn hàng thành công", orderResponses));
     }
 
     // =========================================================================
@@ -116,7 +116,7 @@ public class OrderController {
     @Operation(summary = "Get order details by ID (User / PO / Admin)")
     public ResponseEntity<ApiResponse<OrderResponse>> getOrderById(@PathVariable Integer id) {
         OrderResponse orderResponse = orderService.getOrderById(id);
-        return ResponseEntity.ok(ApiResponse.success("Fetched order details successfully", orderResponse));
+        return ResponseEntity.ok(ApiResponse.success("Lấy thông tin chi tiết đơn hàng thành công", orderResponse));
     }
 
     // Xuất / Tải xuống hóa đơn PDF cho đơn hàng đã phê duyệt
@@ -142,7 +142,7 @@ public class OrderController {
             @RequestParam(defaultValue = "20") int size,
             @RequestParam(required = false) OrderStatus status,
             @RequestParam(required = false) String sort) {
-        return ResponseEntity.ok(ApiResponse.success("Fetched orders list successfully",
+        return ResponseEntity.ok(ApiResponse.success("Lấy danh sách đơn hàng thành công",
                 orderService.getAllOrders(status, page, size, sort)));
     }
 
@@ -156,7 +156,7 @@ public class OrderController {
             @RequestParam(defaultValue = "20") int size,
             @RequestParam(required = false) OrderStatus status,
             @RequestParam(required = false) String sort) {
-        return ResponseEntity.ok(ApiResponse.success("Fetched customer orders successfully",
+        return ResponseEntity.ok(ApiResponse.success("Lấy danh sách đơn hàng của khách hàng thành công",
                 orderService.getOrdersByCustomer(customerId, status, page, size, sort)));
     }
 
@@ -173,7 +173,7 @@ public class OrderController {
             @Valid @RequestBody OrderStatusUpdateRequest request) {
         OrderResponse orderResponse = orderService.updateOrderStatus(id, request);
         log.info("Order {} status updated successfully", id);
-        return ResponseEntity.ok(ApiResponse.success("Order status updated successfully", orderResponse));
+        return ResponseEntity.ok(ApiResponse.success("Cập nhật trạng thái đơn hàng thành công", orderResponse));
     }
 
     // Yêu cầu hoàn tiền đơn hàng

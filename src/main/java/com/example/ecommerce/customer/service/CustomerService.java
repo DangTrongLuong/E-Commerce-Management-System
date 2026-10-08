@@ -6,6 +6,8 @@ import com.example.ecommerce.customer.dto.CustomerResponse;
 import com.example.ecommerce.common.dto.PageResponse;
 import com.example.ecommerce.customer.entity.Customer;
 import com.example.ecommerce.common.exception.ConflictException;
+import com.example.ecommerce.common.exception.DuplicateResourceException;
+import com.example.ecommerce.common.exception.ResourceNotFoundException;
 import com.example.ecommerce.customer.mapper.CustomerMapper;
 import com.example.ecommerce.customer.repository.CustomerRepository;
 import lombok.AccessLevel;
@@ -29,7 +31,10 @@ public class CustomerService {
 
     public CustomerResponse createCustomer(CustomerCreationRequest customerCreationRequest){
         if(customerRepository.existsByEmail(customerCreationRequest.getEmail())){
-            throw new RuntimeException("Email đã tồn tại !");
+            throw new DuplicateResourceException("Email đã tồn tại trên hệ thống!");
+        }
+        if(customerCreationRequest.getPhone() != null && customerRepository.existsByPhone(customerCreationRequest.getPhone())){
+            throw new DuplicateResourceException("Số điện thoại này đã được sử dụng trên hệ thống!");
         }
 
         Customer customer = customerMapper.createCustomer(customerCreationRequest);
@@ -53,18 +58,18 @@ public class CustomerService {
 
     public CustomerResponse getCustomerById(int id){
         Customer customer = customerRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Không tìm thấy khách hàng !"));
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy khách hàng với mã ID: " + id));
 
         return customerMapper.toResponse(customer);
     }
 
     public CustomerResponse updateCustomer(int id, CustomerUpdateRequest customerCreationRequest){
         Customer customer = customerRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Không tìm thấy khác hàng !"));
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy khách hàng với mã ID: " + id));
 
         if(!customer.getEmail().equals(customerCreationRequest.getEmail())
         && customerRepository.existsByEmail(customerCreationRequest.getEmail())){
-            throw new RuntimeException("Email đã tồn tại ");
+            throw new DuplicateResourceException("Email đã tồn tại trên hệ thống");
         }
 
         customerMapper.updateCustomer(customerCreationRequest, customer);
@@ -75,10 +80,10 @@ public class CustomerService {
 
     public void deteleCustomer(int id){
         Customer customer = customerRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Không tìm thấy khách hàng"));
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy khách hàng với mã ID: " + id));
 
         if(!customer.getOrders().isEmpty()){
-            throw new ConflictException("Không thể xóa khách đàng đã có đơn hàng");
+            throw new ConflictException("Không thể xóa khách hàng đã có đơn hàng trong hệ thống");
         }
 
         customerRepository.delete(customer);

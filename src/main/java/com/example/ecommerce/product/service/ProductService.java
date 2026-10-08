@@ -46,7 +46,7 @@ public class ProductService {
                 .isPresent();
 
         if (nameExists) {
-            throw new ConflictException("Product name '" + productCreationRequest.getName() + "' already exists");
+            throw new ConflictException("Tên sản phẩm '" + productCreationRequest.getName() + "' đã tồn tại trên hệ thống");
         }
 
         Product product = productMapper.toProduct(productCreationRequest);
@@ -110,7 +110,7 @@ public class ProductService {
     @Cacheable(value = "products", key = "#id")
     public ProductResponse getProductById(int id) {
         Product product = productRepository.findById(id)
-                .orElseThrow(() -> ResourceNotFoundException.of("Product", "id", id));
+                .orElseThrow(() -> ResourceNotFoundException.of("Sản phẩm", "id", id));
 
         return productMapper.toResponse(product);
     }
@@ -119,7 +119,7 @@ public class ProductService {
     @Transactional(rollbackFor = Exception.class)
     public ProductResponse updateProduct(int id, ProductUpdateRequest productUpdateRequest) {
         Product product = productRepository.findById(id)
-                .orElseThrow(() -> ResourceNotFoundException.of("Product", "id", id));
+                .orElseThrow(() -> ResourceNotFoundException.of("Sản phẩm", "id", id));
 
         verifyProductOwnership(product);
 
@@ -131,12 +131,12 @@ public class ProductService {
     @Transactional(rollbackFor = Exception.class)
     public void deleteProduct(int id) {
         Product product = productRepository.findById(id)
-                .orElseThrow(() -> ResourceNotFoundException.of("Product", "id", id));
+                .orElseThrow(() -> ResourceNotFoundException.of("Sản phẩm", "id", id));
 
         verifyProductOwnership(product);
 
         if (!product.getOrderItems().isEmpty()) {
-            throw new ConflictException("Cannot delete product already associated with orders");
+            throw new ConflictException("Không thể xóa sản phẩm đã từng phát sinh trong đơn hàng");
         }
 
         productRepository.delete(product);
@@ -150,6 +150,6 @@ public class ProductService {
         if (currentUser.getRole() == Role.PRODUCT_OWNER && product.getOwner() != null && product.getOwner().getId().equals(currentUser.getId())) {
             return;
         }
-        throw new AccessDeniedException("Forbidden: Caller does not own product " + product.getId());
+        throw new AccessDeniedException("Bạn không có quyền chỉnh sửa hoặc xóa sản phẩm #" + product.getId());
     }
 }

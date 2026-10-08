@@ -42,7 +42,7 @@ public class ProductController {
             @RequestParam("file") MultipartFile file
     ) {
         ProductImportResultResponse result = productBatchService.importProductsFromCsv(file);
-        return ResponseEntity.ok(ApiResponse.success("Import products successful", result));
+        return ResponseEntity.ok(ApiResponse.success("Nhập danh sách sản phẩm từ file CSV thành công", result));
     }
 
     @PostMapping
@@ -55,7 +55,7 @@ public class ProductController {
         log.info("Product created successfully: {}", productResponse.getId());
         return ResponseEntity
                 .status(HttpStatus.CREATED)
-                .body(ApiResponse.success("Product created successfully", productResponse));
+                .body(ApiResponse.success("Tạo sản phẩm thành công", productResponse));
     }
 
     @GetMapping
@@ -70,7 +70,7 @@ public class ProductController {
     ) {
         return ResponseEntity.ok(
                 ApiResponse.success(
-                        "Get products successful",
+                        "Lấy danh sách sản phẩm thành công",
                         productService.getAllProduct(keyword, status, page, size, sort)
                 )
         );
@@ -83,7 +83,7 @@ public class ProductController {
         ProductResponse productResponse = productService.getProductById(id);
         return ResponseEntity
                 .status(HttpStatus.OK)
-                .body(ApiResponse.success("Get product successful", productResponse));
+                .body(ApiResponse.success("Lấy thông tin chi tiết sản phẩm thành công", productResponse));
     }
 
     @PutMapping("/{id}")
@@ -97,7 +97,7 @@ public class ProductController {
         log.info("Product updated successfully: {}", id);
         return ResponseEntity
                 .status(HttpStatus.OK)
-                .body(ApiResponse.success("Product updated successfully", productResponse));
+                .body(ApiResponse.success("Cập nhật sản phẩm thành công", productResponse));
     }
 
     @DeleteMapping("/{id}")
@@ -107,6 +107,6 @@ public class ProductController {
         productService.deleteProduct(id);
         return ResponseEntity
                 .status(HttpStatus.OK)
-                .body(ApiResponse.success("Product deleted successfully", null));
+                .body(ApiResponse.success("Xóa sản phẩm thành công", null));
     }
 }

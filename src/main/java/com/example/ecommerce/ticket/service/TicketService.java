@@ -113,7 +113,7 @@ public class TicketService {
 
         // Separation of duties
         if (ticket.getRequester().getId().equals(currentUser.getId())) {
-            throw new SelfApprovalNotAllowedException("Requester cannot approve their own ticket");
+            throw new SelfApprovalNotAllowedException("Người tạo yêu cầu không được phép tự duyệt phiếu của chính mình");
         }
 
         verifyApproverAuthority(ticket, currentUser);
@@ -141,7 +141,7 @@ public class TicketService {
         AppUser currentUser = securityUtils.getCurrentUser();
 
         if (request == null || request.getComment() == null || request.getComment().trim().isEmpty()) {
-            throw new BadRequestExeption("Comment is required for rejecting ticket");
+            throw new BadRequestExeption("Vui lòng nhập ghi chú lý do khi từ chối vé phê duyệt");
         }
 
         verifyApproverAuthority(ticket, currentUser);
@@ -161,7 +161,7 @@ public class TicketService {
         AppUser currentUser = securityUtils.getCurrentUser();
 
         if (request == null || request.getComment() == null || request.getComment().trim().isEmpty()) {
-            throw new BadRequestExeption("Comment is required for returning ticket");
+            throw new BadRequestExeption("Vui lòng nhập ghi chú lý do khi yêu cầu chỉnh sửa vé");
         }
 
         verifyApproverAuthority(ticket, currentUser);
@@ -181,11 +181,11 @@ public class TicketService {
         AppUser currentUser = securityUtils.getCurrentUser();
 
         if (!ticket.getRequester().getId().equals(currentUser.getId())) {
-            throw new AccessDeniedException("Only the requester can modify returned ticket items");
+            throw new AccessDeniedException("Chỉ người tạo yêu cầu mới có quyền chỉnh sửa danh sách sản phẩm của vé");
         }
 
         if (ticket.getStatus() != TicketStatus.RETURNED) {
-            throw new InvalidTicketStatusException("Can only update items when ticket status is RETURNED");
+            throw new InvalidTicketStatusException("Chỉ có thể cập nhật sản phẩm khi vé ở trạng thái YÊU CẦU SỬA (RETURNED)");
         }
 
         Order order = ticket.getOrder();
@@ -207,20 +207,20 @@ public class TicketService {
         AppUser expectedOwner = null;
         for (Map.Entry<Integer, Integer> entry : mergedQuantities.entrySet()) {
             Product p = productRepository.findById(entry.getKey())
-                    .orElseThrow(() -> new ResourceNotFoundException("Product not found: " + entry.getKey()));
+                    .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy sản phẩm với mã ID: " + entry.getKey()));
 
             if (expectedOwner == null) {
                 expectedOwner = p.getOwner();
             } else if (p.getOwner() != null && !p.getOwner().getId().equals(expectedOwner.getId())) {
-                throw new MixedOwnerOrderException("Order cannot contain products from multiple product owners");
+                throw new MixedOwnerOrderException("Đơn hàng không được chứa sản phẩm từ nhiều nhà cung cấp khác nhau");
             }
 
             if (p.getStatus() != ProductStatus.ACTIVE) {
-                throw new ConflictException("Product '" + p.getName() + "' is inactive");
+                throw new ConflictException("Sản phẩm '" + p.getName() + "' đang ở trạng thái ngừng kinh doanh");
             }
 
             if (p.getStock() < entry.getValue()) {
-                throw new InsufficientStockException("Product '" + p.getName() + "' has insufficient stock");
+                throw new InsufficientStockException("Sản phẩm '" + p.getName() + "' không đủ số lượng tồn kho");
             }
 
             p.setStock(p.getStock() - entry.getValue());
@@ -250,7 +250,7 @@ public class TicketService {
         AppUser currentUser = securityUtils.getCurrentUser();
 
         if (!ticket.getRequester().getId().equals(currentUser.getId())) {
-            throw new AccessDeniedException("Only the requester can resubmit this ticket");
+            throw new AccessDeniedException("Chỉ người tạo yêu cầu mới có quyền gửi lại vé này");
         }
 
         TicketStatus fromStatus = ticket.getStatus();
@@ -270,7 +270,7 @@ public class TicketService {
         AppUser currentUser = securityUtils.getCurrentUser();
 
         if (!ticket.getRequester().getId().equals(currentUser.getId()) && currentUser.getRole() != Role.ADMIN) {
-            throw new AccessDeniedException("Only the requester or admin can cancel this ticket");
+            throw new AccessDeniedException("Chỉ người tạo yêu cầu hoặc Quản trị viên mới có quyền hủy vé này");
         }
 
         TicketStatus fromStatus = ticket.getStatus();
@@ -286,7 +286,7 @@ public class TicketService {
 
     private PurchaseTicket findTicketOrThrow(Long id) {
         return ticketRepository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("PurchaseTicket not found with id: " + id));
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy vé phê duyệt với mã ID: " + id));
     }
 
     private void verifyTicketVisibility(PurchaseTicket ticket) {
@@ -301,7 +301,7 @@ public class TicketService {
             return;
         }
         // DD-07: Return 404 for unseen resources
-        throw new ResourceNotFoundException("PurchaseTicket not found with id: " + ticket.getId());
+        throw new ResourceNotFoundException("Không tìm thấy vé phê duyệt với mã ID: " + ticket.getId());
     }
 
     private void verifyApproverAuthority(PurchaseTicket ticket, AppUser currentUser) {
@@ -312,7 +312,7 @@ public class TicketService {
                 && ticket.getApprover().getId().equals(currentUser.getId())) {
             return;
         }
-        throw new AccessDeniedException("Forbidden: Caller is not authorized to process this ticket");
+        throw new AccessDeniedException("Bạn không có quyền thực thi tác vụ trên vé phê duyệt này");
     }
 
     private void recordHistory(PurchaseTicket ticket, TicketAction action, TicketStatus from, TicketStatus to,

@@ -35,7 +35,7 @@ public class GlobalExeptionHandler {
                 })
                 .toList();
         log.warn("Validation error: {}", details);
-        ApiResponse<Object> body = ApiResponse.error("VALIDATION_ERROR", "Validation failed", details);
+        ApiResponse<Object> body = ApiResponse.error("VALIDATION_ERROR", "Dữ liệu đầu vào không hợp lệ", details);
         return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(body);
     }
 
@@ -72,7 +72,7 @@ public class GlobalExeptionHandler {
     // 401 UNAUTHORIZED
     @ExceptionHandler(AuthenticationException.class)
     public ResponseEntity<ApiResponse<Object>> handleAuthentication(AuthenticationException ex) {
-        return build(HttpStatus.UNAUTHORIZED, "UNAUTHORIZED", "Authentication required");
+        return build(HttpStatus.UNAUTHORIZED, "UNAUTHORIZED", "Yêu cầu đăng nhập để thực hiện thao tác này");
     }
 
     @ExceptionHandler(TokenExpiredException.class)
@@ -83,7 +83,7 @@ public class GlobalExeptionHandler {
     // 403 FORBIDDEN
     @ExceptionHandler(AccessDeniedException.class)
     public ResponseEntity<ApiResponse<Object>> handleAccessDenied(AccessDeniedException ex) {
-        String message = (ex.getMessage() != null && !ex.getMessage().isBlank()) ? ex.getMessage() : "Access denied";
+        String message = (ex.getMessage() != null && !ex.getMessage().isBlank()) ? ex.getMessage() : "Bạn không có quyền thực hiện thao tác này";
         return build(HttpStatus.FORBIDDEN, "FORBIDDEN", message);
     }
 
@@ -156,7 +156,7 @@ public class GlobalExeptionHandler {
             return build(HttpStatus.CONFLICT, "CONCURRENT_MODIFICATION",
                     "Sản phẩm này đã được thêm vào đơn hàng bởi một giao dịch khác cùng thời điểm.");
         }
-        return build(HttpStatus.CONFLICT, "DATA_INTEGRITY", "Data constraint violation");
+        return build(HttpStatus.CONFLICT, "DATA_INTEGRITY", "Ràng buộc dữ liệu không hợp lệ");
     }
 
     @ExceptionHandler(ConflictException.class)
@@ -175,7 +175,7 @@ public class GlobalExeptionHandler {
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ApiResponse<Object>> handleGenericException(Exception ex) {
         log.error("Unhandled server error: ", ex);
-        return build(HttpStatus.INTERNAL_SERVER_ERROR, "INTERNAL_ERROR", "An unexpected error occurred");
+        return build(HttpStatus.INTERNAL_SERVER_ERROR, "INTERNAL_ERROR", "Đã xảy ra lỗi hệ thống không xác định. Vui lòng thử lại sau.");
     }
 
     private ResponseEntity<ApiResponse<Object>> build(HttpStatus status, String code, String message) {

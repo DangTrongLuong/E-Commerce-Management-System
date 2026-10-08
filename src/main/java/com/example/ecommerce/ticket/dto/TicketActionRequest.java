@@ -12,6 +12,6 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor
 public class TicketActionRequest {
 
-    @Size(min = 10, max = 500, message = "Comment must be between 10 and 500 characters")
+    @Size(min = 10, max = 500, message = "Ghi chú phải có độ dài từ 10 đến 500 ký tự")
     private String comment;
 }

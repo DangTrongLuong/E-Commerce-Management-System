@@ -27,6 +27,7 @@ import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
 import lombok.experimental.FieldDefaults;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -171,7 +172,7 @@ public class VnPayService {
 
         Order order = orderRepository.findById(paymentTransaction.getOrderId())
                 .orElseThrow(
-                        () -> new ResourceNotFoundException("Order not found: " + paymentTransaction.getOrderId()));
+                        () -> new ResourceNotFoundException("Không tìm thấy đơn hàng với mã ID: " + paymentTransaction.getOrderId()));
 
         if (isSuccess) {
             order.setPaymentStatus(OrderPaymentStatus.PAID);
@@ -197,12 +198,12 @@ public class VnPayService {
         String calculatedHash = VnPayUtils.hmacSHA512(vnPayProperties.getHashSecret(), hashData);
         if (!calculatedHash.equalsIgnoreCase(receivedHash)) {
             throw new InvalidVnPaySignatureException(
-                    "Chu ky Return URL khong hop le cho txnRef=" + params.get("vnp_TxnRef"));
+                    "Chữ ký Return URL không hợp lệ cho mã giao dịch " + params.get("vnp_TxnRef"));
         }
 
         String txnRef = params.get("vnp_TxnRef");
         PaymentTransaction paymentTransaction = paymentRepository.findByVnpTxnRef(txnRef)
-                .orElseThrow(() -> new ResourceNotFoundException("Payment transaction not found: " + txnRef));
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy giao dịch thanh toán với mã: " + txnRef));
 
         String responseCode = params.get("vnp_ResponseCode");
         boolean isSuccess = "00".equals(responseCode);
@@ -229,8 +230,8 @@ public class VnPayService {
         }
 
         String message = isSuccess
-                ? "Giao dich thanh cong"
-                : "Giao dich khong thanh cong (ma loi : " + responseCode + ")";
+                ? "Giao dịch thành công"
+                : "Giao dịch không thành công (Mã lỗi: " + responseCode + ")";
 
         return VnPayReturnResult.builder()
                 .orderId(paymentTransaction.getOrderId())
@@ -244,7 +245,7 @@ public class VnPayService {
     @Transactional(readOnly = true)
     public List<PaymentResponse> getPaymentHistory(Integer orderId) {
         Order order = orderRepository.findById(orderId)
-                .orElseThrow(() -> new ResourceNotFoundException("khong tim thay don hang voi ma: " + orderId));
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy đơn hàng với mã ID: " + orderId));
 
         AppUser currentUser = securityUtils.getCurrentUser();
         if (currentUser.getRole() != Role.ADMIN) {
@@ -253,7 +254,7 @@ public class VnPayService {
                     .anyMatch(item -> item.getProduct().getOwner() != null && item.getProduct().getOwner().getId().equals(currentUser.getId()));
 
             if (!isCustomer && !isOwner) {
-                throw new org.springframework.security.access.AccessDeniedException("Forbidden: Caller does not have access to payment history of this order");
+                throw new AccessDeniedException("Bạn không có quyền xem lịch sử thanh toán của đơn hàng này");
             }
         }
 

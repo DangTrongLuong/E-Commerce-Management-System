@@ -39,10 +39,10 @@ public class NotificationService {
     public NotificationResponse markAsRead(Long notificationId) {
         AppUser currentUser = securityUtils.getCurrentUser();
         Notification notification = notificationRepository.findById(notificationId)
-                .orElseThrow(() -> new ResourceNotFoundException("Notification not found: " + notificationId));
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy thông báo với mã ID: " + notificationId));
 
         if (!notification.getUser().getId().equals(currentUser.getId())) {
-            throw new ResourceNotFoundException("Notification not found: " + notificationId);
+            throw new ResourceNotFoundException("Không tìm thấy thông báo với mã ID: " + notificationId);
         }
 
         notification.setReadAt(LocalDateTime.now());

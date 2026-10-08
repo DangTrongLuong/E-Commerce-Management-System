@@ -11,7 +11,7 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor
 @AllArgsConstructor
 public class PaymentCreationRequest{
-        @NotNull(message = "Mã order không được để trống !")
+        @NotNull(message = "Mã đơn hàng không được để trống")
         private Integer orderId;
 
         private String bankCode;

@@ -83,17 +83,17 @@ public class OrderService {
         securityUtils.verifyUserOrAdmin(Long.valueOf(request.getCustomerId()));
 
         Customer customer = customerRepository.findById(request.getCustomerId())
-                .orElseThrow(() -> new ResourceNotFoundException("Customer not found: " + request.getCustomerId()));
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy khách hàng với mã ID: " + request.getCustomerId()));
 
         if (customer.getStatus() != CustomerStatus.ACTIVE) {
-            throw new BadRequestExeption("Customer account is inactive");
+            throw new BadRequestExeption("Tài khoản khách hàng đang ở trạng thái ngưng hoạt động");
         }
 
         // Xử lý các sp trùng lặp và cộng số lượng
         Map<Integer, Integer> productQuantityMap = new HashMap<>();
         for (OrderItemRequest item : request.getItems()) {
             if (item.getQuantity() == null || item.getQuantity() <= 0) {
-                throw new BadRequestExeption("Quantity must be greater than 0 for productId: " + item.getProductId());
+                throw new BadRequestExeption("Số lượng sản phẩm #" + item.getProductId() + " phải lớn hơn 0");
             }
             productQuantityMap.merge(item.getProductId(), item.getQuantity(), Integer::sum);
         }
@@ -111,11 +111,11 @@ public class OrderService {
 
             Product product = productMap.get(productId);
             if (product == null) {
-                throw new ResourceNotFoundException("Product not found with id: " + productId);
+                throw new ResourceNotFoundException("Không tìm thấy sản phẩm với mã ID: " + productId);
             }
 
             if (product.getStatus() != ProductStatus.ACTIVE) {
-                throw new ConflictException("Product '" + product.getName() + "' is inactive");
+                throw new ConflictException("Sản phẩm '" + product.getName() + "' đang ở trạng thái ngừng kinh doanh");
             }
 
             AppUser owner = product.getOwner();
@@ -142,8 +142,8 @@ public class OrderService {
 
                 if (product.getStock() < quantity) {
                     throw new InsufficientStockException(
-                            "Product '" + product.getName() + "' has insufficient stock. Stock: "
-                                    + product.getStock() + ", requested: " + quantity);
+                            "Sản phẩm '" + product.getName() + "' không đủ số lượng tồn kho (Hiện có: "
+                                    + product.getStock() + ", Yêu cầu: " + quantity + ")");
                 }
 
                 OrderItem orderItem = OrderItem.builder()
@@ -157,8 +157,8 @@ public class OrderService {
                 int updateStock = productRepository.decreaseStockAtomic(product.getId(), quantity);
                 if (updateStock == 0) {
                     throw new InsufficientStockException(
-                            "Product '" + product.getName() + "' has insufficient stock. Stock: "
-                                    + product.getStock() + ", requested: " + quantity);
+                            "Sản phẩm '" + product.getName() + "' không đủ số lượng tồn kho (Hiện có: "
+                                    + product.getStock() + ", Yêu cầu: " + quantity + ")");
                 }
             }
 
@@ -449,8 +449,8 @@ public class OrderService {
             return orderMapper.toResponse(orderRepository.save(order));
         }
 
-        throw new InvalidOrderStatusException("Order status transition from " + currentStatus + " to " + newStatus
-                + " is not allowed via PATCH API. Use Ticket API for approval workflow.");
+        throw new InvalidOrderStatusException("Không thể chuyển trạng thái đơn hàng từ " + currentStatus + " sang " + newStatus
+                + " qua API này. Vui lòng sử dụng Quy trình Phê duyệt.");
     }
 
     @Transactional(rollbackFor = Exception.class)
@@ -461,14 +461,14 @@ public class OrderService {
         if (currentUser.getRole() == Role.USER) {
             if (order.getCustomer() == null || currentUser.getCustomer() == null
                     || order.getCustomer().getId() != currentUser.getCustomer().getId()) {
-                throw new AccessDeniedException("Forbidden: You do not own this order");
+                throw new AccessDeniedException("Bạn không có quyền yêu cầu hoàn tiền cho đơn hàng này");
             }
         }
 
         if (order.getStatus() != OrderStatus.PROCESSING
                 && order.getStatus() != OrderStatus.COMPLETED) {
             throw new InvalidOrderStatusException(
-                    "Only paid or completed orders (PROCESSING or COMPLETED) can be refunded. Current status: "
+                    "Chỉ đơn hàng đã thanh toán hoặc hoàn thành (PROCESSING hoặc COMPLETED) mới có thể yêu cầu hoàn tiền. Trạng thái hiện tại: "
                             + order.getStatus());
         }
 
@@ -570,12 +570,12 @@ public class OrderService {
 
     private Order findOrderByIdOrThrow(int id) {
         return orderRepository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Order not found with id: " + id));
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy đơn hàng với mã ID: " + id));
     }
 
     private Product findProductByIdOrThrow(int id) {
         return productRepository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Product not found with id: " + id));
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy sản phẩm với mã ID: " + id));
     }
 
     private OrderItem findOrderItemInOrderOrThrow(Order order, int productId) {
@@ -596,7 +596,8 @@ public class OrderService {
     private void validateRefundRequestedStatus(Order order) {
         if (order.getStatus() != OrderStatus.REFUND_REQUESTED) {
             throw new InvalidOrderStatusException(
-                    "Order is not in REFUND_REQUESTED state. Current: " + order.getStatus());
+                    "Đơn hàng đang không ở trạng thái yêu cầu hoàn tiền (REFUND_REQUESTED). Trạng thái hiện tại: "
+                            + order.getStatus());
         }
     }
 
@@ -606,7 +607,7 @@ public class OrderService {
                     .anyMatch(item -> item.getProduct().getOwner() != null
                             && item.getProduct().getOwner().getId().equals(currentUser.getId()));
             if (!isOwner) {
-                throw new AccessDeniedException("Forbidden: Caller is not the product owner of this order");
+                throw new AccessDeniedException("Bạn không phải là chủ sở hữu sản phẩm trong đơn hàng này");
             }
         }
     }

@@ -42,7 +42,7 @@ public class PaymentController {
         PaymentUrlResponse paymentUrlResponse = vnPayService.createPaymentUrl(paymentCreationRequest,request);
         log.info("Đã tạo URL thanh toán cho đơn hàng {}: txnRef={}", paymentCreationRequest.getOrderId(), paymentUrlResponse.getTxnRef());
         return ResponseEntity
-                .ok(ApiResponse.success("Đã tạo thành công URL thanh toán !", paymentUrlResponse));
+                .ok(ApiResponse.success("Đã tạo thành công URL thanh toán", paymentUrlResponse));
     }
 
     @GetMapping("/return")
@@ -51,7 +51,7 @@ public class PaymentController {
         Map<String, String> params = VnPayUtils
                 .toSingleValueMap(request.getParameterMap());
         VnPayReturnResult result = vnPayService.handleResult(params);
-        return ResponseEntity.ok(ApiResponse.success("Giao dịch hoàn tiền đã được xử lý !", result));
+        return ResponseEntity.ok(ApiResponse.success("Kết quả thanh toán VNPay đã được xử lý thành công", result));
     }
 
     @GetMapping("/history/{orderId}")
@@ -59,7 +59,7 @@ public class PaymentController {
     @Operation(summary = "Lấy lịch sử các lần thử thanh toán của một đơn hàng (User/PO/Admin)")
     public ResponseEntity<ApiResponse<List<PaymentResponse>>> getHistory(@PathVariable Integer orderId) {
         List<PaymentResponse> history = vnPayService.getPaymentHistory(orderId);
-        return ResponseEntity.ok(ApiResponse.success("Đã truy xuất thành công lịch sử thanh toán !", history));
+        return ResponseEntity.ok(ApiResponse.success("Lấy lịch sử thanh toán thành công", history));
     }
 
 }

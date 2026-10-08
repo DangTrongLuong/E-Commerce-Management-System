@@ -33,27 +33,27 @@ public class NotificationEventListener {
         switch (toStatus) {
             case PENDING_APPROVAL -> {
                 recipient = ticket.getApprover();
-                message = "You have a new purchase ticket pending approval: Ticket #" + ticket.getId();
+                message = "Bạn có một yêu cầu phê duyệt đơn hàng mới chờ xử lý: Mã phiếu #" + ticket.getId();
             }
             case APPROVED -> {
                 recipient = ticket.getRequester();
-                message = "Your purchase ticket #" + ticket.getId() + " has been approved!";
+                message = "Yêu cầu phê duyệt đơn hàng #" + ticket.getId() + " của bạn đã được duyệt thành công!";
             }
             case REJECTED -> {
                 recipient = ticket.getRequester();
-                message = "Your purchase ticket #" + ticket.getId() + " was rejected.";
+                message = "Yêu cầu phê duyệt đơn hàng #" + ticket.getId() + " của bạn đã bị từ chối.";
             }
             case RETURNED -> {
                 recipient = ticket.getRequester();
-                message = "Your purchase ticket #" + ticket.getId() + " was returned for modification.";
+                message = "Yêu cầu phê duyệt đơn hàng #" + ticket.getId() + " của bạn bị yêu cầu chỉnh sửa lại.";
             }
             case CANCELLED -> {
                 recipient = ticket.getApprover();
-                message = "Purchase ticket #" + ticket.getId() + " was cancelled.";
+                message = "Yêu cầu phê duyệt đơn hàng #" + ticket.getId() + " đã bị hủy.";
             }
             case EXPIRED -> {
                 recipient = ticket.getRequester();
-                message = "Your purchase ticket #" + ticket.getId() + " has expired.";
+                message = "Yêu cầu phê duyệt đơn hàng #" + ticket.getId() + " của bạn đã hết hạn xử lý (quá SLA).";
             }
         }
 
