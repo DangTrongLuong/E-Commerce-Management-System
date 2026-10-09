@@ -12,8 +12,11 @@ import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.core.AuthenticationException;
 import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
+import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.multipart.MaxUploadSizeExceededException;
+import org.springframework.web.multipart.MultipartException;
 
 import java.util.HashMap;
 import java.util.List;
@@ -37,6 +40,27 @@ public class GlobalExeptionHandler {
         log.warn("Validation error: {}", details);
         ApiResponse<Object> body = ApiResponse.error("VALIDATION_ERROR", "Dữ liệu đầu vào không hợp lệ", details);
         return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(body);
+    }
+
+    @ExceptionHandler(MaxUploadSizeExceededException.class)
+    public ResponseEntity<ApiResponse<Object>> handleMaxUploadSizeExceeded(MaxUploadSizeExceededException ex) {
+        log.warn("Upload file size limit exceeded: {}", ex.getMessage());
+        return build(HttpStatus.BAD_REQUEST, "PAYLOAD_TOO_LARGE", "Dung lượng file vượt quá giới hạn cho phép (tối đa 5MB)");
+    }
+
+    @ExceptionHandler(MissingServletRequestParameterException.class)
+    public ResponseEntity<ApiResponse<Object>> handleMissingServletRequestParameter(MissingServletRequestParameterException ex) {
+        log.warn("Missing request parameter: {}", ex.getParameterName());
+        if ("file".equalsIgnoreCase(ex.getParameterName())) {
+            return build(HttpStatus.BAD_REQUEST, "MISSING_FILE_PARAMETER", "Vui lòng chọn file hợp lệ để tải lên (thiếu tham số 'file')");
+        }
+        return build(HttpStatus.BAD_REQUEST, "MISSING_PARAMETER", "Thiếu tham số bắt buộc trong yêu cầu: " + ex.getParameterName());
+    }
+
+    @ExceptionHandler(MultipartException.class)
+    public ResponseEntity<ApiResponse<Object>> handleMultipartException(MultipartException ex) {
+        log.warn("Multipart upload error: {}", ex.getMessage());
+        return build(HttpStatus.BAD_REQUEST, "MULTIPART_ERROR", "Lỗi định dạng upload file: Vui lòng đảm bảo gửi dạng multipart/form-data và file không bị hỏng");
     }
 
     @ExceptionHandler(BadRequestException.class)
