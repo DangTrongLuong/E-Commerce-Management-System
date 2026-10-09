@@ -1,7 +1,7 @@
 databaseChangeLog:
   - changeSet:
       id: 005-create-user-table
-      author: Antigravity
+      author: Lương
       changes:
         - createTable:
             tableName: users

@@ -1,11 +1,9 @@
 databaseChangeLog:
   - changeSet:
       id: 018-rename-app-user-to-users
-      author: Antigravity
+      author: Lương
       changes:
-        - dropTable:
-            tableName: users
-
         - renameTable:
             oldTableName: app_user
             newTableName: users
+

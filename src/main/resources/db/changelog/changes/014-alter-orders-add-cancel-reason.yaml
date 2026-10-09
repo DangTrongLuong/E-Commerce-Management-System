@@ -1,7 +1,7 @@
 databaseChangeLog:
   - changeSet:
       id: 014-alter-orders-add-cancel-reason
-      author: Antigravity
+      author: Lương
       changes:
         - addColumn:
             tableName: orders

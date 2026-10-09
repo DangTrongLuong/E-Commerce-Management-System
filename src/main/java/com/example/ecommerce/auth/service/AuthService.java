@@ -3,7 +3,7 @@ package com.example.ecommerce.auth.service;
 import com.example.ecommerce.auth.dto.LoginRequest;
 import com.example.ecommerce.auth.dto.RefreshTokenRequest;
 import com.example.ecommerce.auth.dto.RegisterRequest;
-import com.example.ecommerce.auth.dto.VerifyEmailRequest;
+import com.example.ecommerce.auth.dto.ResendVerificationRequest;
 import com.example.ecommerce.auth.dto.AuthResponse;
 import com.example.ecommerce.user.dto.UserResponse;
 import com.example.ecommerce.user.entity.AppUser;
@@ -25,6 +25,7 @@ import com.example.ecommerce.common.util.JwtUtil;
 import com.example.ecommerce.common.util.SecurityUtils;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -48,6 +49,16 @@ public class AuthService {
     private final SecurityUtils securityUtils;
     private final LoginAttemptService loginAttemptService;
     private final EmailService emailService;
+
+    @Value("${app.backend-url:http://localhost:8080}")
+    private String backendUrl;
+
+    @Value("${app.frontend-url:http://localhost:3000}")
+    private String frontendUrl;
+
+    // =========================================================================
+    // SERVICE METHODS
+    // =========================================================================
 
     @Transactional(rollbackFor = Exception.class)
     public UserResponse register(RegisterRequest request) {
@@ -76,47 +87,54 @@ public class AuthService {
 
         AppUser savedUser = userRepository.saveAndFlush(user);
 
-        String code = emailService.generateVerificationCode();
-        emailService.saveVerificationCode(savedUser.getEmail(), code);
-        emailService.sendVerificationEmail(savedUser.getEmail(), code);
+        String token = emailService.generateActivationToken();
+        emailService.saveActivationToken(token, savedUser.getEmail());
+        String activationUrl = backendUrl + "/api/auth/activate-account?token=" + token;
+        emailService.sendActivationEmail(savedUser.getEmail(), activationUrl);
 
-        return UserResponse.builder()
-                .id(savedUser.getId())
-                .email(savedUser.getEmail())
-                .role(savedUser.getRole())
-                .status(savedUser.getStatus())
-                .customerId(savedUser.getCustomer() != null ? Long.valueOf(savedUser.getCustomer().getId()) : null)
-                .createdAt(savedUser.getCreatedAt())
-                .build();
+        return mapToUserResponse(savedUser);
     }
 
     @Transactional(rollbackFor = Exception.class)
-    public UserResponse verifyEmail(VerifyEmailRequest request) {
-        AppUser user = userRepository.findByEmail(request.getEmail())
-                .orElseThrow(() -> new ResourceNotFoundException(
-                        "Tài khoản không tồn tại với email: " + request.getEmail()));
+    public void resendVerificationCode(ResendVerificationRequest request) {
+        AppUser user = findUserByEmail(request.getEmail());
+
         if (user.getStatus() == UserStatus.ACTIVE) {
             throw new BadRequestExeption("Tài khoản đã được kích hoạt trước đó.");
         }
-        boolean isValid = emailService.verifyCode(request.getEmail(), request.getCode());
-        if (!isValid) {
-            throw new BadRequestExeption("Mã xác thực không chính xác hoặc đã hết hạn");
+        if (user.getStatus() == UserStatus.LOCKED || user.getStatus() == UserStatus.INACTIVE) {
+            throw new AccountLockedException("Tài khoản đã bị khóa hoặc ngưng hoạt động.");
         }
+
+        String token = emailService.generateActivationToken();
+        emailService.saveActivationToken(token, user.getEmail());
+        String activationUrl = backendUrl + "/api/auth/activate-account?token=" + token;
+        emailService.sendActivationEmail(user.getEmail(), activationUrl);
+
+        log.info("Đã gửi lại email kích hoạt cho tài khoản {}", user.getEmail());
+    }
+
+    @Transactional(rollbackFor = Exception.class)
+    public UserResponse activateAccountByToken(String token) {
+        String email = emailService.getAndRemoveEmailByToken(token);
+        if (email == null) {
+            throw new BadRequestExeption("Liên kết xác thực không hợp lệ hoặc đã hết hạn.");
+        }
+
+        AppUser user = findUserByEmail(email);
+        if (user.getStatus() == UserStatus.ACTIVE) {
+            return mapToUserResponse(user);
+        }
+
         user.setStatus(UserStatus.ACTIVE);
         if (user.getCustomer() != null) {
             user.getCustomer().setStatus(CustomerStatus.ACTIVE);
             customerRepository.save(user.getCustomer());
         }
+
         AppUser savedUser = userRepository.save(user);
-        log.info("Kích hoạt tài khoản {} và thông tin Customer thành công", user.getEmail());
-        return UserResponse.builder()
-                .id(savedUser.getId())
-                .email(savedUser.getEmail())
-                .role(savedUser.getRole())
-                .status(savedUser.getStatus())
-                .customerId(savedUser.getCustomer() != null ? Long.valueOf(savedUser.getCustomer().getId()) : null)
-                .createdAt(savedUser.getCreatedAt())
-                .build();
+        log.info("Kích hoạt tài khoản thành công qua Activation Link cho email {}", email);
+        return mapToUserResponse(savedUser);
     }
 
     @Transactional(rollbackFor = Exception.class)
@@ -130,8 +148,13 @@ public class AuthService {
         }
 
         if (user.getStatus() == UserStatus.UNVERIFIED) {
+            String token = emailService.generateActivationToken();
+            emailService.saveActivationToken(token, user.getEmail());
+            String activationUrl = backendUrl + "/api/auth/activate-account?token=" + token;
+            emailService.sendActivationEmail(user.getEmail(), activationUrl);
+
             throw new AccountUnverifiedException(
-                    "Tài khoản chưa được kích hoạt. Vui lòng kiểm tra email để nhập mã xác thực.");
+                    "Tài khoản chưa được kích hoạt. Liên kết kích hoạt mới đã được gửi lại vào email của bạn. Vui lòng kiểm tra hộp thư.");
         }
 
         if (user.getStatus() == UserStatus.LOCKED
@@ -150,35 +173,12 @@ public class AuthService {
         String accessToken = jwtUtil.generateAccessToken(user);
         String refreshToken = jwtUtil.generateRefreshToken(user);
 
-        RefreshToken tokenEntity = RefreshToken.builder()
-                .user(user)
-                .tokenHash(hashToken(refreshToken))
-                .expiresAt(LocalDateTime.now().plusDays(7))
-                .revoked(false)
-                .build();
-        refreshTokenRepository.save(tokenEntity);
+        saveRefreshToken(user, refreshToken);
 
-        Long customerId = user.getCustomer() != null ? Long.valueOf(user.getCustomer().getId()) : null;
-
-        UserResponse userResponse = UserResponse.builder()
-                .id(user.getId())
-                .email(user.getEmail())
-                .role(user.getRole())
-                .status(user.getStatus())
-                .customerId(customerId)
-                .createdAt(user.getCreatedAt())
-                .build();
-
-        return AuthResponse.builder()
-                .tokenType("Bearer")
-                .accessToken(accessToken)
-                .expiresIn(jwtUtil.getAccessTokenTtlSeconds())
-                .refreshToken(refreshToken)
-                .user(userResponse)
-                .build();
+        return buildAuthResponse(accessToken, refreshToken, mapToUserResponse(user));
     }
 
-    @Transactional(rollbackFor = Exception.class) // try catch
+    @Transactional(rollbackFor = Exception.class)
     public AuthResponse refreshToken(RefreshTokenRequest request) {
         String refreshToken = request.getRefreshToken();
         if (!jwtUtil.validateToken(refreshToken) || !"refresh".equals(jwtUtil.extractType(refreshToken))) {
@@ -206,32 +206,9 @@ public class AuthService {
         String newAccessToken = jwtUtil.generateAccessToken(user);
         String newRefreshToken = jwtUtil.generateRefreshToken(user);
 
-        RefreshToken newTokenEntity = RefreshToken.builder()
-                .user(user)
-                .tokenHash(hashToken(newRefreshToken))
-                .expiresAt(LocalDateTime.now().plusDays(7))
-                .revoked(false)
-                .build();
-        refreshTokenRepository.save(newTokenEntity);
+        saveRefreshToken(user, newRefreshToken);
 
-        Long customerId = user.getCustomer() != null ? Long.valueOf(user.getCustomer().getId()) : null;
-
-        UserResponse userResponse = UserResponse.builder()
-                .id(user.getId())
-                .email(user.getEmail())
-                .role(user.getRole())
-                .status(user.getStatus())
-                .customerId(customerId)
-                .createdAt(user.getCreatedAt())
-                .build();
-
-        return AuthResponse.builder()
-                .tokenType("Bearer")
-                .accessToken(newAccessToken)
-                .expiresIn(jwtUtil.getAccessTokenTtlSeconds())
-                .refreshToken(newRefreshToken)
-                .user(userResponse)
-                .build();
+        return buildAuthResponse(newAccessToken, newRefreshToken, mapToUserResponse(user));
     }
 
     @Transactional(rollbackFor = Exception.class)
@@ -264,6 +241,34 @@ public class AuthService {
 
     public UserResponse getCurrentUserInfo() {
         AppUser user = securityUtils.getCurrentUser();
+        return mapToUserResponse(user);
+    }
+
+    private String hashToken(String token) {
+        try {
+            MessageDigest digest = MessageDigest.getInstance("SHA-256");
+            byte[] hash = digest.digest(token.getBytes(StandardCharsets.UTF_8));
+            return HexFormat.of().formatHex(hash);
+        } catch (NoSuchAlgorithmException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    // =========================================================================
+    // HELPER METHODS (Hàm dùng chung)
+    // =========================================================================
+
+    public AppUser findUserById(Long id) {
+        return userRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy người dùng với mã ID: " + id));
+    }
+
+    public AppUser findUserByEmail(String email) {
+        return userRepository.findByEmail(email)
+                .orElseThrow(() -> new ResourceNotFoundException("Tài khoản không tồn tại với email: " + email));
+    }
+
+    public UserResponse mapToUserResponse(AppUser user) {
         Long customerId = user.getCustomer() != null ? Long.valueOf(user.getCustomer().getId()) : null;
         return UserResponse.builder()
                 .id(user.getId())
@@ -275,13 +280,23 @@ public class AuthService {
                 .build();
     }
 
-    private String hashToken(String token) {
-        try {
-            MessageDigest digest = MessageDigest.getInstance("SHA-256");
-            byte[] hash = digest.digest(token.getBytes(StandardCharsets.UTF_8));
-            return HexFormat.of().formatHex(hash);
-        } catch (NoSuchAlgorithmException e) {
-            throw new RuntimeException(e);
-        }
+    private AuthResponse buildAuthResponse(String accessToken, String refreshToken, UserResponse userResponse) {
+        return AuthResponse.builder()
+                .tokenType("Bearer")
+                .accessToken(accessToken)
+                .expiresIn(jwtUtil.getAccessTokenTtlSeconds())
+                .refreshToken(refreshToken)
+                .user(userResponse)
+                .build();
+    }
+
+    private void saveRefreshToken(AppUser user, String refreshToken) {
+        RefreshToken tokenEntity = RefreshToken.builder()
+                .user(user)
+                .tokenHash(hashToken(refreshToken))
+                .expiresAt(LocalDateTime.now().plusDays(7))
+                .revoked(false)
+                .build();
+        refreshTokenRepository.save(tokenEntity);
     }
 }

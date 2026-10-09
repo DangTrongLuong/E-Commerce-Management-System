@@ -1,7 +1,7 @@
 databaseChangeLog:
   - changeSet:
       id: 015-create-notification
-      author: Antigravity
+      author: Lương
       changes:
         - createTable:
             tableName: notification

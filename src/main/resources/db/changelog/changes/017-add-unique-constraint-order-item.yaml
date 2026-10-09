@@ -1,7 +1,7 @@
 databaseChangeLog:
   - changeSet:
       id: 017-add-unique-constraint-order-item
-      author: dev
+      author: Lương
       changes:
         - addUniqueConstraint:
             tableName: order_items

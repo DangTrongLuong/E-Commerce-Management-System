@@ -1,7 +1,7 @@
 databaseChangeLog:
   - changeSet:
       id: 016-alter-app-user-add-token-version
-      author: Antigravity
+      author: Lương
       changes:
         - addColumn:
             tableName: app_user

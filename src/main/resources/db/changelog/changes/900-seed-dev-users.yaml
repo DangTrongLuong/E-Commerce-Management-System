@@ -1,7 +1,7 @@
 databaseChangeLog:
   - changeSet:
       id: 900-seed-dev-users
-      author: Antigravity
+      author: Lương
       context: dev
       changes:
         - insert:

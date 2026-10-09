@@ -2,7 +2,7 @@ databaseChangeLog:
 
   - changeSet:
       id: 011-1-create-payment-transaction-table
-      author: oms
+      author: Lương
       comment: Tao bang payment_transaction de tich hop VNPay
       changes:
         - createTable:

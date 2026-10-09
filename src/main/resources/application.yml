@@ -51,6 +51,8 @@ spring:
             trust: smtp.gmail.com
 
 app:
+  frontend-url: ${FRONTEND_URL:http://localhost:3000}
+  backend-url: ${BACKEND_URL:http://localhost:8080}
   redis:
     host: ${REDIS_HOST}
     port: ${REDIS_PORT}

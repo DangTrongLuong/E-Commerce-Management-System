@@ -1,7 +1,7 @@
 databaseChangeLog:
   - changeSet:
       id: 011-alter-product-add-owner
-      author: Antigravity
+      author: Lương
       changes:
         - addColumn:
             tableName: products

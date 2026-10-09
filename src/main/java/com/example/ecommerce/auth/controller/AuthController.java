@@ -3,19 +3,26 @@ package com.example.ecommerce.auth.controller;
 import com.example.ecommerce.auth.dto.LoginRequest;
 import com.example.ecommerce.auth.dto.RefreshTokenRequest;
 import com.example.ecommerce.auth.dto.RegisterRequest;
-import com.example.ecommerce.auth.dto.VerifyEmailRequest;
+import com.example.ecommerce.auth.dto.ResendVerificationRequest;
 import com.example.ecommerce.common.dto.ApiResponse;
 import com.example.ecommerce.auth.dto.AuthResponse;
 import com.example.ecommerce.user.dto.UserResponse;
 import com.example.ecommerce.auth.service.AuthService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
+
+import java.io.IOException;
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 
 @RestController
 @RequestMapping("/api/auth")
@@ -24,6 +31,9 @@ import org.springframework.web.bind.annotation.*;
 public class AuthController {
 
     private final AuthService authService;
+
+    @Value("${app.frontend-url}")
+    private String frontendUrl;
 
     @PostMapping("/register")
     @PreAuthorize("permitAll()")
@@ -43,13 +53,30 @@ public class AuthController {
         return ResponseEntity.ok(ApiResponse.success("Đăng nhập thành công", response));
     }
 
-    @PostMapping("/verify-email")
+    @GetMapping("/activate-account")
     @PreAuthorize("permitAll()")
-    @Operation(summary = "Xác thực mã OTP 6 số để kích hoạt tài khoản (Public)")
-    public ResponseEntity<ApiResponse<UserResponse>> verifyEmail(@Valid @RequestBody VerifyEmailRequest request) {
-        UserResponse response = authService.verifyEmail(request);
-        return ResponseEntity
-                .ok(ApiResponse.success("Kích hoạt tài khoản thành công! Bạn có thể đăng nhập ngay.", response));
+    @Operation(summary = "Kích hoạt tài khoản bằng liên kết từ Email và chuyển hướng về Frontend (Public)")
+    public void activateAccount(
+            @RequestParam("token") String token,
+            HttpServletResponse response) throws IOException {
+        try {
+            UserResponse user = authService.activateAccountByToken(token);
+            String encodedEmail = URLEncoder.encode(user.getEmail(), StandardCharsets.UTF_8);
+            response.sendRedirect(frontendUrl + "/activate-success?email=" + encodedEmail + "&status=success");
+        } catch (Exception e) {
+            String encodedMsg = URLEncoder.encode(e.getMessage(), StandardCharsets.UTF_8);
+            response.sendRedirect(frontendUrl + "/activate-failed?error=" + encodedMsg);
+        }
+    }
+
+    @PostMapping("/resend-verification")
+    @PreAuthorize("permitAll()")
+    @Operation(summary = "Gửi lại liên kết kích hoạt tài khoản qua email (Public)")
+    public ResponseEntity<ApiResponse<Void>> resendVerificationCode(
+            @Valid @RequestBody ResendVerificationRequest request) {
+        authService.resendVerificationCode(request);
+        return ResponseEntity.ok(ApiResponse
+                .success("Đã gửi lại liên kết kích hoạt thành công. Vui lòng kiểm tra hộp thư email của bạn.", null));
     }
 
     @PostMapping("/refresh")

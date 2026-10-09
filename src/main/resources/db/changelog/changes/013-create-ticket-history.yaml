@@ -1,7 +1,7 @@
 databaseChangeLog:
   - changeSet:
       id: 013-create-ticket-history
-      author: Antigravity
+      author: Lương
       changes:
         - createTable:
             tableName: ticket_history
