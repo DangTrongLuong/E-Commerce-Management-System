@@ -1,7 +1,18 @@
 databaseChangeLog:
   - changeSet:
       id: 017-add-unique-constraint-order-item
-      author: Lương
+      author: oms
+      failOnError: false
+      preConditions:
+        - onFail: MARK_RAN
+        - onError: MARK_RAN
+        - not:
+            - indexExists:
+                tableName: order_items
+                indexName: UK_ORDER_ITEM_ORDER_PRODUCT
+            - uniqueConstraintExists:
+                tableName: order_items
+                constraintName: UK_ORDER_ITEM_ORDER_PRODUCT
       changes:
         - addUniqueConstraint:
             tableName: order_items

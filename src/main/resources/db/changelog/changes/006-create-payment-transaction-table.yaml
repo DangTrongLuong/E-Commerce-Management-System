@@ -2,8 +2,15 @@ databaseChangeLog:
 
   - changeSet:
       id: 011-1-create-payment-transaction-table
-      author: Lương
+      author: oms
+      failOnError: false
       comment: Tao bang payment_transaction de tich hop VNPay
+      preConditions:
+        - onFail: MARK_RAN
+        - onError: MARK_RAN
+        - not:
+            - tableExists:
+                tableName: payment_transaction
       changes:
         - createTable:
             tableName: payment_transaction
@@ -87,7 +94,17 @@ databaseChangeLog:
   - changeSet:
       id: 011-2-add-unique-vnp-txn-ref
       author: oms
+      failOnError: false
       comment: Moi vnp_TxnRef gui cho VNPay phai la duy nhat
+      preConditions:
+        - onFail: MARK_RAN
+        - onError: MARK_RAN
+        - tableExists:
+            tableName: payment_transaction
+        - not:
+            - uniqueConstraintExists:
+                tableName: payment_transaction
+                constraintName: uk_payment_txn_ref
       changes:
         - addUniqueConstraint:
             tableName: payment_transaction
@@ -98,7 +115,17 @@ databaseChangeLog:
   - changeSet:
       id: 011-3-add-fk-payment-order
       author: oms
+      failOnError: false
       comment: payment_transaction.order_id tham chieu orders.id
+      preConditions:
+        - onFail: MARK_RAN
+        - onError: MARK_RAN
+        - tableExists:
+            tableName: payment_transaction
+        - not:
+            - foreignKeyConstraintExists:
+                foreignKeyTableName: payment_transaction
+                foreignKeyConstraintName: fk_payment_order
       changes:
         - addForeignKeyConstraint:
             baseTableName: payment_transaction
@@ -113,6 +140,16 @@ databaseChangeLog:
   - changeSet:
       id: 011-4-add-indexes-payment-transaction
       author: oms
+      failOnError: false
+      preConditions:
+        - onFail: MARK_RAN
+        - onError: MARK_RAN
+        - tableExists:
+            tableName: payment_transaction
+        - not:
+            - indexExists:
+                tableName: payment_transaction
+                indexName: idx_payment_order_id
       changes:
         - createIndex:
             tableName: payment_transaction
@@ -131,9 +168,17 @@ databaseChangeLog:
   - changeSet:
       id: 011-5-add-payment-status-to-orders
       author: oms
+      failOnError: false
       comment: >
         Cot cache trang thai thanh toan tren orders de tra cuu nhanh khong can join;
         nguon su that van la bang payment_transaction (is_ipn_confirmed + status).
+      preConditions:
+        - onFail: MARK_RAN
+        - onError: MARK_RAN
+        - not:
+            - columnExists:
+                tableName: orders
+                columnName: payment_status
       changes:
         - addColumn:
             tableName: orders
@@ -145,3 +190,4 @@ databaseChangeLog:
                   afterColumn: status
                   constraints:
                     nullable: false
+

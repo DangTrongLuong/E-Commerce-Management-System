@@ -9,9 +9,11 @@ import com.example.ecommerce.common.dto.PageResponse;
 import com.example.ecommerce.product.dto.ProductImportResultResponse;
 import com.example.ecommerce.product.dto.ProductResponse;
 import com.example.ecommerce.product.enums.ProductStatus;
+import com.example.ecommerce.product.service.CloudinaryService;
 import com.example.ecommerce.product.service.ProductBatchService;
 import com.example.ecommerce.product.service.ProductService;
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.AccessLevel;
@@ -19,10 +21,13 @@ import lombok.RequiredArgsConstructor;
 import lombok.experimental.FieldDefaults;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
+
+import java.util.Map;
 
 @Slf4j
 @RequiredArgsConstructor
@@ -34,11 +39,24 @@ public class ProductController {
 
     ProductService productService;
     ProductBatchService productBatchService;
+    CloudinaryService cloudinaryService;
 
-    @PostMapping("/import")
+    @PostMapping(value = "/upload-image", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    @PreAuthorize("hasAnyRole('PRODUCT_OWNER', 'ADMIN')")
+    @Operation(summary = "Upload image to Cloudinary and return image URL (PO / Admin)")
+    public ResponseEntity<ApiResponse<Map<String, String>>> uploadProductImage(
+            @Parameter(description = "File ảnh sản phẩm (tối đa 5MB, JPG/PNG/WEBP/GIF)")
+            @RequestParam("file") MultipartFile file
+    ) {
+        String imageUrl = cloudinaryService.uploadImage(file);
+        return ResponseEntity.ok(ApiResponse.success("Upload ảnh sản phẩm thành công", Map.of("imageUrl", imageUrl)));
+    }
+
+    @PostMapping(value = "/import", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     @PreAuthorize("hasAnyRole('PRODUCT_OWNER', 'ADMIN')")
     @Operation(summary = "Import products from CSV (PO / Admin)")
     public ResponseEntity<ApiResponse<ProductImportResultResponse>> importProducts(
+            @Parameter(description = "File CSV chứa danh sách sản phẩm")
             @RequestParam("file") MultipartFile file
     ) {
         ProductImportResultResponse result = productBatchService.importProductsFromCsv(file);

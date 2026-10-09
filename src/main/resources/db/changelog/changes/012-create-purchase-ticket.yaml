@@ -1,7 +1,14 @@
 databaseChangeLog:
   - changeSet:
       id: 012-create-purchase-ticket
-      author: Lương
+      author: oms
+      failOnError: false
+      preConditions:
+        - onFail: MARK_RAN
+        - onError: MARK_RAN
+        - not:
+            - tableExists:
+                tableName: purchase_ticket
       changes:
         - createTable:
             tableName: purchase_ticket

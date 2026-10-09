@@ -1,7 +1,14 @@
 databaseChangeLog:
   - changeSet:
       id: 003-create-order-table
-      author: Dang Trong Luong
+      author: oms
+      failOnError: false
+      preConditions:
+        - onFail: MARK_RAN
+        - onError: MARK_RAN
+        - not:
+            - tableExists:
+                tableName: orders
       changes:
         - createTable:
             tableName: orders

@@ -1,7 +1,14 @@
 databaseChangeLog:
   - changeSet:
       id: 013-create-ticket-history
-      author: Lương
+      author: oms
+      failOnError: false
+      preConditions:
+        - onFail: MARK_RAN
+        - onError: MARK_RAN
+        - not:
+            - tableExists:
+                tableName: ticket_history
       changes:
         - createTable:
             tableName: ticket_history

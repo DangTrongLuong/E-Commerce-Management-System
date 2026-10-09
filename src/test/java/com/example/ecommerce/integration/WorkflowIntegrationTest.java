@@ -70,6 +70,7 @@ class WorkflowIntegrationTest {
     @Autowired private TicketService ticketService;
     @Autowired private TicketSlaScheduler ticketSlaScheduler;
     @org.springframework.boot.test.mock.mockito.MockBean private com.example.ecommerce.notification.service.EmailService emailService;
+    @org.springframework.boot.test.mock.mockito.MockBean private net.javacrumbs.shedlock.core.LockProvider lockProvider;
 
     // Repositories for setup & teardown
     @Autowired private AppUserRepository userRepository;
@@ -89,6 +90,8 @@ class WorkflowIntegrationTest {
     @BeforeEach
     void setUp() {
         SecurityContextHolder.clearContext();
+        org.mockito.Mockito.when(lockProvider.lock(org.mockito.ArgumentMatchers.any()))
+                .thenReturn(java.util.Optional.of(org.mockito.Mockito.mock(net.javacrumbs.shedlock.core.SimpleLock.class)));
 
         // 1. Setup Admin
         adminUser = userRepository.save(AppUser.builder()

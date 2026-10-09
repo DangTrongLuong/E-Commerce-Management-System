@@ -1,6 +1,6 @@
 databaseChangeLog:
   - changeSet:
-      id: 014-alter-orders-add-cancel-reason
+      id: 019-alter-product-add-image-url
       author: oms
       failOnError: false
       preConditions:
@@ -8,14 +8,12 @@ databaseChangeLog:
         - onError: MARK_RAN
         - not:
             - columnExists:
-                tableName: orders
-                columnName: cancel_reason
+                tableName: products
+                columnName: image_url
       changes:
         - addColumn:
-            tableName: orders
+            tableName: products
             columns:
               - column:
-                  name: cancel_reason
+                  name: image_url
                   type: VARCHAR(500)
-                  constraints:
-                    nullable: true

@@ -29,4 +29,6 @@ public class ProductUpdateRequest {
     private Integer stock;
 
     private ProductStatus status;
+
+    private String imageUrl;
 }

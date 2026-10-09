@@ -16,6 +16,9 @@ import java.util.Optional;
 @Repository
 public interface PurchaseTicketRepository extends JpaRepository<PurchaseTicket, Long> {
 
+    @EntityGraph(attributePaths = { "order", "order.orderItems", "order.customer", "requester", "approver" })
+    Optional<PurchaseTicket> findById(Long id);
+
     @EntityGraph(attributePaths = { "order", "order.customer", "requester", "approver" })
     Optional<PurchaseTicket> findByOrderId(Long orderId);
 

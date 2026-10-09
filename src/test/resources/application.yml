@@ -20,12 +20,21 @@ spring:
     job:
       enabled: false
 
+  mail:
+    host: localhost
+    port: 25
+
 jwt:
   secret: default-secret-key-must-be-at-least-256-bits-long-for-hmac-sha256
   expiration: 1800000
   refresh-expiration: 604800000
 
 app:
+  frontend-url: http://localhost:3000
+  backend-url: http://localhost:8080
+  redis:
+    host: localhost
+    port: 6379
   security:
     jwt:
       secret: default-secret-key-must-be-at-least-256-bits-long-for-hmac-sha256

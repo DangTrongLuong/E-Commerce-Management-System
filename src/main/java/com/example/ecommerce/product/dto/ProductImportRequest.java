@@ -31,4 +31,6 @@ public class ProductImportRequest {
     private Integer stock;
 
     private String status;
+
+    private String imageUrl;
 }

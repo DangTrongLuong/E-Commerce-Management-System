@@ -45,6 +45,9 @@ databaseChangeLog:
   - include:
       file: changes/018-rename-app-user-to-users.yaml
       relativeToChangelogFile: true
+  - include:
+      file: changes/019-alter-product-add-image-url.yaml
+      relativeToChangelogFile: true
 #   - include:
 #       file: changes/900-seed-dev-users.yaml
 #       relativeToChangelogFile: true

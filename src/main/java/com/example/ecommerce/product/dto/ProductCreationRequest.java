@@ -25,4 +25,6 @@ public class ProductCreationRequest {
 
     @PositiveOrZero(message = "Số lượng tồn kho phải lớn hơn hoặc bằng 0")
     private Integer stock;
+
+    private String imageUrl;
 }

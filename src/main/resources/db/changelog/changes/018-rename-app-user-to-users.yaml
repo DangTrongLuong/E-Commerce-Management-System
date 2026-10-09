@@ -1,7 +1,15 @@
 databaseChangeLog:
   - changeSet:
       id: 018-rename-app-user-to-users
-      author: Lương
+      author: oms
+      preConditions:
+        - onFail: MARK_RAN
+        - onError: MARK_RAN
+        - tableExists:
+            tableName: app_user
+        - not:
+            - tableExists:
+                tableName: users
       changes:
         - renameTable:
             oldTableName: app_user

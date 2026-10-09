@@ -1,7 +1,14 @@
 databaseChangeLog:
   - changeSet:
       id: 005-create-user-table
-      author: Lương
+      author: oms
+      failOnError: false
+      preConditions:
+        - onFail: MARK_RAN
+        - onError: MARK_RAN
+        - not:
+            - tableExists:
+                tableName: users
       changes:
         - createTable:
             tableName: users

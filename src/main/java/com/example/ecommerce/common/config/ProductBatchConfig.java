@@ -93,6 +93,9 @@ public class ProductBatchConfig {
                             : (record.size() > 2 ? record.get(2) : null);
                     String statusStr = record.isMapped("status") ? record.get("status")
                             : (record.size() > 3 ? record.get(3) : null);
+                    String imageUrl = record.isMapped("image_url") ? record.get("image_url")
+                            : (record.isMapped("imageUrl") ? record.get("imageUrl")
+                            : (record.size() > 4 ? record.get(4) : null));
 
                     BigDecimal price = null;
                     try {
@@ -115,6 +118,7 @@ public class ProductBatchConfig {
                             .price(price)
                             .stock(stock)
                             .status(statusStr != null ? statusStr.trim() : null)
+                            .imageUrl(imageUrl != null ? imageUrl.trim() : null)
                             .build();
                 }
                 closeResources();
@@ -159,6 +163,7 @@ public class ProductBatchConfig {
                     .name(req.getName())
                     .price(req.getPrice())
                     .stock(req.getStock())
+                    .imageUrl(req.getImageUrl())
                     .status(status)
                     .build();
         };

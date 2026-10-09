@@ -28,6 +28,7 @@ import org.springframework.data.jpa.domain.Specification;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.multipart.MultipartFile;
 
 @Service
 @RequiredArgsConstructor
@@ -37,6 +38,7 @@ public class ProductService {
     ProductRepository productRepository;
     ProductMapper productMapper;
     SecurityUtils securityUtils;
+    CloudinaryService cloudinaryService;
 
     @CacheEvict(value = "products", allEntries = true)
     @Transactional(rollbackFor = Exception.class)

@@ -42,6 +42,7 @@ import org.springframework.data.domain.Sort;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.hibernate.Hibernate;
 
 import java.util.*;
 
@@ -113,7 +114,8 @@ public class TicketService {
 
         // Separation of duties
         if (ticket.getRequester().getId().equals(currentUser.getId())) {
-            throw new SelfApprovalNotAllowedException("Người tạo yêu cầu không được phép tự duyệt phiếu của chính mình");
+            throw new SelfApprovalNotAllowedException(
+                    "Người tạo yêu cầu không được phép tự duyệt phiếu của chính mình");
         }
 
         verifyApproverAuthority(ticket, currentUser);
@@ -185,7 +187,8 @@ public class TicketService {
         }
 
         if (ticket.getStatus() != TicketStatus.RETURNED) {
-            throw new InvalidTicketStatusException("Chỉ có thể cập nhật sản phẩm khi vé ở trạng thái YÊU CẦU SỬA (RETURNED)");
+            throw new InvalidTicketStatusException(
+                    "Chỉ có thể cập nhật sản phẩm khi vé ở trạng thái YÊU CẦU SỬA (RETURNED)");
         }
 
         Order order = ticket.getOrder();
@@ -207,7 +210,8 @@ public class TicketService {
         AppUser expectedOwner = null;
         for (Map.Entry<Integer, Integer> entry : mergedQuantities.entrySet()) {
             Product p = productRepository.findById(entry.getKey())
-                    .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy sản phẩm với mã ID: " + entry.getKey()));
+                    .orElseThrow(() -> new ResourceNotFoundException(
+                            "Không tìm thấy sản phẩm với mã ID: " + entry.getKey()));
 
             if (expectedOwner == null) {
                 expectedOwner = p.getOwner();
@@ -325,7 +329,9 @@ public class TicketService {
                 .actor(actor)
                 .comment(comment)
                 .build();
-        ticket.addHistory(history);
+        if (ticket.getHistories() != null && Hibernate.isInitialized(ticket.getHistories())) {
+            ticket.getHistories().add(history);
+        }
         historyRepository.saveAndFlush(history);
     }
 

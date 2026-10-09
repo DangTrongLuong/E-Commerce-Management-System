@@ -142,9 +142,13 @@ public class AuthService {
         AppUser user = userRepository.findByEmail(request.getEmail())
                 .orElseThrow(() -> new BadRequestExeption("Email hoặc mật khẩu không chính xác"));
 
-        if (!passwordEncoder.matches(request.getPassword(), user.getPasswordHash())) {
-            loginAttemptService.recordFailedAttempt(user.getId());
-            throw new BadRequestExeption("Email hoặc mật khẩu không chính xác");
+        if (user.getStatus() == UserStatus.LOCKED
+                || (user.getLockedUntil() != null && user.getLockedUntil().isAfter(LocalDateTime.now()))) {
+            throw new AccountLockedException("Tài khoản đã bị khóa do đăng nhập sai quá nhiều lần");
+        }
+
+        if (user.getStatus() == UserStatus.INACTIVE) {
+            throw new AccountLockedException("Tài khoản đã ngưng hoạt động");
         }
 
         if (user.getStatus() == UserStatus.UNVERIFIED) {
@@ -157,13 +161,9 @@ public class AuthService {
                     "Tài khoản chưa được kích hoạt. Liên kết kích hoạt mới đã được gửi lại vào email của bạn. Vui lòng kiểm tra hộp thư.");
         }
 
-        if (user.getStatus() == UserStatus.LOCKED
-                || (user.getLockedUntil() != null && user.getLockedUntil().isAfter(LocalDateTime.now()))) {
-            throw new AccountLockedException("Tài khoản đã bị khóa do đăng nhập sai quá nhiều lần");
-        }
-
-        if (user.getStatus() == UserStatus.INACTIVE) {
-            throw new AccountLockedException("Tài khoản đã ngưng hoạt động");
+        if (!passwordEncoder.matches(request.getPassword(), user.getPasswordHash())) {
+            loginAttemptService.recordFailedAttempt(user.getId());
+            throw new BadRequestExeption("Email hoặc mật khẩu không chính xác");
         }
 
         user.setFailedLoginCount(0);

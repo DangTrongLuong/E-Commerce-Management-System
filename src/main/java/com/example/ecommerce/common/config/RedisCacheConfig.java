@@ -30,8 +30,11 @@ public class RedisCacheConfig {
     @Bean
     public LettuceConnectionFactory redisConnectionFactory() {
         RedisStandaloneConfiguration standaloneConfig = new RedisStandaloneConfiguration();
-        standaloneConfig.setHostName(redisProperties.getHost());
-        standaloneConfig.setPort(redisProperties.getPort());
+        String host = (redisProperties.getHost() != null && !redisProperties.getHost().isBlank())
+                ? redisProperties.getHost() : "localhost";
+        int port = redisProperties.getPort() > 0 ? redisProperties.getPort() : 6379;
+        standaloneConfig.setHostName(host);
+        standaloneConfig.setPort(port);
 
         if (redisProperties.getUsername() != null && !redisProperties.getUsername().isBlank()) {
             standaloneConfig.setUsername(redisProperties.getUsername());
