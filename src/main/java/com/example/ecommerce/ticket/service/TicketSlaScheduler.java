@@ -25,7 +25,7 @@ public class TicketSlaScheduler {
     public void processOverdueTickets() {
         LocalDateTime now = LocalDateTime.now();
         List<PurchaseTicket> overdueTickets = ticketRepository.findByStatusInAndDueAtBefore(
-                List.of(TicketStatus.PENDING_APPROVAL, TicketStatus.RETURNED),
+                List.of(TicketStatus.PENDING_APPROVAL, TicketStatus.PENDING_PO_APPROVE, TicketStatus.PENDING_AD_APPROVE, TicketStatus.RETURNED),
                 now);
 
         if (overdueTickets.isEmpty()) {

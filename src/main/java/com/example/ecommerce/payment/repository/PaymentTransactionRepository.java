@@ -1,6 +1,8 @@
 package com.example.ecommerce.payment.repository;
 
 import com.example.ecommerce.payment.entity.PaymentTransaction;
+import com.example.ecommerce.payment.enums.PaymentStatus;
+
 import jakarta.persistence.LockModeType;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Lock;
@@ -19,4 +21,8 @@ public interface PaymentTransactionRepository extends JpaRepository<PaymentTrans
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("SELECT p FROM PaymentTransaction p WHERE p.vnpTxnRef = :vnpTxnRef")
     Optional<PaymentTransaction> findByVnpTxnRefForUpdate(String vnpTxnRef);
+
+    List<PaymentTransaction> findByOrderIdAndStatus(Integer orderId, PaymentStatus status);
+
+    Optional<PaymentTransaction> findFirstByOrderIdOrderByCreatedAtDesc(Integer orderId);
 }

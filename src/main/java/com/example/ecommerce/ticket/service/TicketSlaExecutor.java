@@ -22,7 +22,10 @@ public class TicketSlaExecutor {
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void expireSingleTicket(Long ticketId) {
         ticketRepository.findById(ticketId).ifPresent(ticket -> {
-            if (ticket.getStatus() == TicketStatus.PENDING_APPROVAL || ticket.getStatus() == TicketStatus.RETURNED) {
+            if (ticket.getStatus() == TicketStatus.PENDING_APPROVAL
+                    || ticket.getStatus() == TicketStatus.PENDING_PO_APPROVE
+                    || ticket.getStatus() == TicketStatus.PENDING_AD_APPROVE
+                    || ticket.getStatus() == TicketStatus.RETURNED) {
                 stateMachine.transition(ticket, TicketAction.EXPIRE, "Ticket expired due to SLA timeout");
                 ticketRepository.save(ticket);
                 log.info("Ticket {} auto-expired successfully", ticket.getId());

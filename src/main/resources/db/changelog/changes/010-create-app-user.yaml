@@ -2,16 +2,17 @@ databaseChangeLog:
   - changeSet:
       id: 010-create-app-user
       author: oms
+      validCheckSum: "*"
       failOnError: false
       preConditions:
         - onFail: MARK_RAN
         - onError: MARK_RAN
         - not:
             - tableExists:
-                tableName: app_user
+                tableName: users
       changes:
         - createTable:
-            tableName: app_user
+            tableName: users
             columns:
               - column:
                   name: id
@@ -19,7 +20,7 @@ databaseChangeLog:
                   autoIncrement: true
                   constraints:
                     primaryKey: true
-                    primaryKeyName: pk_app_user
+                    primaryKeyName: pk_users
                     nullable: false
               - column:
                   name: email
@@ -27,7 +28,7 @@ databaseChangeLog:
                   constraints:
                     nullable: false
                     unique: true
-                    uniqueConstraintName: uk_app_user_email
+                    uniqueConstraintName: uk_users_email
               - column:
                   name: password_hash
                   type: VARCHAR(100)
@@ -51,7 +52,7 @@ databaseChangeLog:
                   constraints:
                     nullable: true
                     unique: true
-                    uniqueConstraintName: uk_app_user_customer_id
+                    uniqueConstraintName: uk_users_customer_id
               - column:
                   name: failed_login_count
                   type: INT
@@ -75,17 +76,17 @@ databaseChangeLog:
                     nullable: false
 
         - addForeignKeyConstraint:
-            baseTableName: app_user
+            baseTableName: users
             baseColumnNames: customer_id
-            constraintName: fk_app_user_customer
+            constraintName: fk_users_customer
             referencedTableName: customers
             referencedColumnNames: id
             onDelete: SET NULL
             onUpdate: CASCADE
 
         - createIndex:
-            indexName: idx_app_user_email
-            tableName: app_user
+            indexName: idx_users_email
+            tableName: users
             columns:
               - column:
                   name: email
@@ -135,7 +136,7 @@ databaseChangeLog:
             baseTableName: refresh_token
             baseColumnNames: user_id
             constraintName: fk_refresh_token_user
-            referencedTableName: app_user
+            referencedTableName: users
             referencedColumnNames: id
             onDelete: CASCADE
             onUpdate: CASCADE
@@ -146,3 +147,4 @@ databaseChangeLog:
             columns:
               - column:
                   name: user_id
+

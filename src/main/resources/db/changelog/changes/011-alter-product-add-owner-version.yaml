@@ -2,6 +2,7 @@ databaseChangeLog:
   - changeSet:
       id: 011-alter-product-add-owner
       author: oms
+      validCheckSum: "*"
       failOnError: false
       preConditions:
         - onFail: MARK_RAN
@@ -24,7 +25,7 @@ databaseChangeLog:
             baseTableName: products
             baseColumnNames: owner_id
             constraintName: fk_products_owner
-            referencedTableName: app_user
+            referencedTableName: users
             referencedColumnNames: id
             onDelete: SET NULL
             onUpdate: CASCADE

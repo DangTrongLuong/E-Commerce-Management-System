@@ -13,6 +13,7 @@ import java.time.LocalDateTime;
 @NoArgsConstructor
 @AllArgsConstructor
 public class PaymentUrlResponse {
+    private Long paymentId;
     private String paymentUrl;
     private String txnRef;
     private BigDecimal amount;

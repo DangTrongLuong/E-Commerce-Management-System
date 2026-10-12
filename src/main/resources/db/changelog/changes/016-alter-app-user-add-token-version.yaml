@@ -2,17 +2,18 @@ databaseChangeLog:
   - changeSet:
       id: 016-alter-app-user-add-token-version
       author: oms
+      validCheckSum: "*"
       failOnError: false
       preConditions:
         - onFail: MARK_RAN
         - onError: MARK_RAN
         - not:
             - columnExists:
-                tableName: app_user
+                tableName: users
                 columnName: token_version
       changes:
         - addColumn:
-            tableName: app_user
+            tableName: users
             columns:
               - column:
                   name: token_version

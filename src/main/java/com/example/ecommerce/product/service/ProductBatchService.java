@@ -1,6 +1,8 @@
 package com.example.ecommerce.product.service;
 
+import com.example.ecommerce.common.util.SecurityUtils;
 import com.example.ecommerce.product.dto.ProductImportResultResponse;
+import com.example.ecommerce.user.entity.AppUser;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.batch.core.*;
@@ -9,7 +11,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.File;
-import java.io.IOException;
 
 @Service
 @RequiredArgsConstructor
@@ -18,6 +19,7 @@ public class ProductBatchService {
 
     private final JobLauncher jobLauncher;
     private final Job importProductJob;
+    private final SecurityUtils securityUtils;
 
     public ProductImportResultResponse importProductsFromCsv(MultipartFile file) {
         if (file.isEmpty()) {
@@ -29,10 +31,24 @@ public class ProductBatchService {
             tempFile = File.createTempFile("product_import_", ".csv");
             file.transferTo(tempFile);
 
-            JobParameters jobParameters = new JobParametersBuilder()
+            AppUser currentUser = null;
+            try {
+                currentUser = securityUtils.getCurrentUser();
+            } catch (Exception e) {
+                log.warn("Không thể lấy thông tin người dùng từ SecurityContext khi import sản phẩm: {}", e.getMessage());
+            }
+
+            Long ownerId = (currentUser != null) ? currentUser.getId() : null;
+
+            JobParametersBuilder parametersBuilder = new JobParametersBuilder()
                     .addString("filePath", tempFile.getAbsolutePath())
-                    .addLong("timestamp", System.currentTimeMillis())
-                    .toJobParameters();
+                    .addLong("timestamp", System.currentTimeMillis());
+
+            if (ownerId != null) {
+                parametersBuilder.addLong("ownerId", ownerId);
+            }
+
+            JobParameters jobParameters = parametersBuilder.toJobParameters();
 
             JobExecution jobExecution = jobLauncher.run(importProductJob, jobParameters);
 
@@ -46,8 +62,8 @@ public class ProductBatchService {
                 failed += (stepExecution.getReadCount() - stepExecution.getWriteCount());
             }
 
-            log.info("Batch job import kết thúc với trạng thái: {}. Total: {}, Success: {}, Failed: {}",
-                    jobExecution.getStatus(), total, success, failed);
+            log.info("Batch job import kết thúc với trạng thái: {}. Total: {}, Success: {}, Failed: {}, Owner ID: {}",
+                    jobExecution.getStatus(), total, success, failed, ownerId);
 
             return ProductImportResultResponse.builder()
                     .total(total)
@@ -68,3 +84,4 @@ public class ProductBatchService {
         }
     }
 }
+

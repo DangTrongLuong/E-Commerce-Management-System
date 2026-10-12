@@ -21,13 +21,13 @@ import java.util.Map;
 @Slf4j
 public class JwtUtil {
 
-    @Value("${app.security.jwt.secret:default-secret-key-must-be-at-least-256-bits-long-for-hmac-sha256}")
+    @Value("${app.security.jwt.secret}")
     private String jwtSecret;
 
-    @Value("${app.security.jwt.access-token-ttl-minutes:30}")
+    @Value("${app.security.jwt.access-token-ttl-minutes}")
     private long accessTokenTtlMinutes;
 
-    @Value("${app.security.jwt.refresh-token-ttl-days:7}")
+    @Value("${app.security.jwt.refresh-token-ttl-days}")
     private long refreshTokenTtlDays;
 
     private SecretKey getSigningKey() {

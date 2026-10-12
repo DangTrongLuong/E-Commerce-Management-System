@@ -2,6 +2,7 @@ databaseChangeLog:
   - changeSet:
       id: 013-create-ticket-history
       author: oms
+      validCheckSum: "*"
       failOnError: false
       preConditions:
         - onFail: MARK_RAN
@@ -69,7 +70,7 @@ databaseChangeLog:
             baseTableName: ticket_history
             baseColumnNames: actor_id
             constraintName: fk_history_actor
-            referencedTableName: app_user
+            referencedTableName: users
             referencedColumnNames: id
             onDelete: SET NULL
             onUpdate: CASCADE

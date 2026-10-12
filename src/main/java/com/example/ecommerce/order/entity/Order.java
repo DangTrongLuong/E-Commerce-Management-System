@@ -52,6 +52,9 @@ public class Order {
     @Column(name = "cancel_reason", length = 500)
     private String cancelReason;
 
+    @Column(name = "paid_at")
+    private LocalDateTime paidAt;
+
     @Column(nullable = false, name = "created_at")
     private LocalDateTime createdAt;
 

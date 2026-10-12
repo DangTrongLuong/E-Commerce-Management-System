@@ -2,6 +2,7 @@ databaseChangeLog:
   - changeSet:
       id: 012-create-purchase-ticket
       author: oms
+      validCheckSum: "*"
       failOnError: false
       preConditions:
         - onFail: MARK_RAN
@@ -95,7 +96,7 @@ databaseChangeLog:
             baseTableName: purchase_ticket
             baseColumnNames: requester_id
             constraintName: fk_ticket_requester
-            referencedTableName: app_user
+            referencedTableName: users
             referencedColumnNames: id
             onDelete: RESTRICT
             onUpdate: CASCADE
@@ -104,7 +105,7 @@ databaseChangeLog:
             baseTableName: purchase_ticket
             baseColumnNames: approver_id
             constraintName: fk_ticket_approver
-            referencedTableName: app_user
+            referencedTableName: users
             referencedColumnNames: id
             onDelete: SET NULL
             onUpdate: CASCADE

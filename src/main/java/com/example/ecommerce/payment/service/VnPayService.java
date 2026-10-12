@@ -16,10 +16,17 @@ import com.example.ecommerce.order.enums.OrderStatus;
 import com.example.ecommerce.payment.enums.PaymentStatus;
 import com.example.ecommerce.common.exception.ConflictException;
 import com.example.ecommerce.common.exception.InvalidVnPaySignatureException;
+import com.example.ecommerce.common.exception.OrderNotCheckoutableException;
 import com.example.ecommerce.common.exception.ResourceNotFoundException;
+import com.example.ecommerce.order.entity.OrderItem;
+import com.example.ecommerce.order.service.OrderStatusStateMachine;
+import com.example.ecommerce.product.repository.ProductRepository;
 import com.example.ecommerce.payment.mapper.PaymentMapper;
 import com.example.ecommerce.order.repository.OrderRepository;
 import com.example.ecommerce.payment.repository.PaymentTransactionRepository;
+import com.example.ecommerce.ticket.entity.PurchaseTicket;
+import com.example.ecommerce.ticket.enums.TicketStatus;
+import com.example.ecommerce.ticket.repository.PurchaseTicketRepository;
 import com.example.ecommerce.common.util.SecurityUtils;
 import com.example.ecommerce.common.util.VnPayUtils;
 import jakarta.servlet.http.HttpServletRequest;
@@ -44,6 +51,9 @@ public class VnPayService {
     VnPayProperties vnPayProperties;
     PaymentTransactionRepository paymentRepository;
     OrderRepository orderRepository;
+    ProductRepository productRepository;
+    PurchaseTicketRepository ticketRepository;
+    OrderStatusStateMachine stateMachine;
     PaymentMapper paymentMapper;
     SecurityUtils securityUtils;
 
@@ -57,10 +67,21 @@ public class VnPayService {
 
         securityUtils.verifyUserOrAdmin(Long.valueOf(order.getCustomer().getId()));
 
-        if (order.getStatus() != OrderStatus.CONFIRMED) {
-            throw new ConflictException(
-                    "Order #" + order.getId() + " chưa thể thanh toán. Trạng thái hiện tại: "
-                            + order.getStatus() + ". Yêu cầu: " + OrderStatus.CONFIRMED);
+        // Kiểm tra vé phê duyệt (PurchaseTicket) nếu có
+        Optional<PurchaseTicket> ticketOpt = ticketRepository.findByOrderId(Long.valueOf(order.getId()));
+        if (ticketOpt.isPresent() && ticketOpt.get().getStatus() != TicketStatus.APPROVED) {
+            throw new OrderNotCheckoutableException(
+                    "Đơn hàng #" + order.getId() + " chưa được phê duyệt vé mua hàng (Trạng thái vé: "
+                            + ticketOpt.get().getStatus() + "). Vui lòng chờ Người kiểm duyệt duyệt đơn trước khi thanh toán!");
+        }
+
+        if (order.getStatus() == OrderStatus.PENDING) {
+            AppUser currentUser = securityUtils.getCurrentUser();
+            stateMachine.transition(order, OrderStatus.AWAITING_PAYMENT, currentUser != null ? currentUser.getEmail() : "USER", "Initiated payment checkout");
+            orderRepository.save(order);
+        } else if (order.getStatus() != OrderStatus.AWAITING_PAYMENT) {
+            throw new OrderNotCheckoutableException(
+                    "Đơn hàng #" + order.getId() + " không ở trạng thái được phép thanh toán. Trạng thái hiện tại: " + order.getStatus());
         }
 
         String txnRef = buildTxnRef(order.getId());
@@ -116,6 +137,7 @@ public class VnPayService {
         LocalDateTime expireAt = LocalDateTime.parse(expireDate, VnPayUtils.VNP_DATE_FORMAT);
 
         return PaymentUrlResponse.builder()
+                .paymentId(paymentTransaction.getId())
                 .paymentUrl(paymentUrl)
                 .txnRef(txnRef)
                 .amount(order.getTotalAmount())
@@ -165,22 +187,47 @@ public class VnPayService {
         paymentTransaction.setResponseCode(responseCode);
         paymentTransaction.setVnpTransactionNo(params.get("vnp_TransactionNo"));
         paymentTransaction.setPayDate(params.get("vnp_PayDate"));
-        paymentTransaction.setStatus(isSuccess ? PaymentStatus.SUCCESS : PaymentStatus.FAILED);
         paymentTransaction.setIpnConfirmed(true);
 
-        paymentRepository.save(paymentTransaction);
-
-        Order order = orderRepository.findById(paymentTransaction.getOrderId())
+        Order order = orderRepository.findByIdForUpdate(paymentTransaction.getOrderId())
                 .orElseThrow(
                         () -> new ResourceNotFoundException("Không tìm thấy đơn hàng với mã ID: " + paymentTransaction.getOrderId()));
 
         if (isSuccess) {
-            order.setPaymentStatus(OrderPaymentStatus.PAID);
-            order.setStatus(OrderStatus.PROCESSING);
+            if (order.getStatus() == OrderStatus.CANCELLED) {
+                // CANCELLED | callback SUCCESS | CANCELLED (không đổi) | PAYMENT -> REFUND_REQUIRED; log WARN
+                paymentTransaction.setStatus(PaymentStatus.REFUND_REQUIRED);
+                paymentRepository.save(paymentTransaction);
+                log.warn("Đơn hàng #{} đã bị hủy (CANCELLED) nhưng nhận được thanh toán thành công từ VNPay (txnRef={}). Chuyển giao dịch sang REFUND_REQUIRED.",
+                        order.getId(), txnRef);
+            } else if (order.getStatus() == OrderStatus.PAID) {
+                // PAID | callback lặp lại | PAID (không đổi) | Không ghi history
+                paymentTransaction.setStatus(PaymentStatus.SUCCESS);
+                paymentRepository.save(paymentTransaction);
+                log.info("Đơn hàng #{} đã ở trạng thái PAID. Giao dịch VNPay lặp lại hợp lệ (txnRef={}).", order.getId(), txnRef);
+            } else {
+                paymentTransaction.setStatus(PaymentStatus.SUCCESS);
+                paymentRepository.save(paymentTransaction);
+                order.setPaymentStatus(OrderPaymentStatus.PAID);
+                stateMachine.transition(order, OrderStatus.PAID, "VNPAY", "IPN Payment Successful");
+                orderRepository.save(order);
+            }
         } else {
+            paymentTransaction.setStatus(PaymentStatus.FAILED);
+            paymentRepository.save(paymentTransaction);
             order.setPaymentStatus(OrderPaymentStatus.FAILED);
+            if (order.getStatus() == OrderStatus.AWAITING_PAYMENT || order.getStatus() == OrderStatus.PENDING) {
+                stateMachine.transition(order, OrderStatus.CANCELLED, "VNPAY", "IPN Payment Failed");
+                // Hoàn lại tồn kho cho từng sản phẩm
+                for (OrderItem item : order.getOrderItems()) {
+                    if (item.getProduct() != null) {
+                        productRepository.increaseStockAtomic(item.getProduct().getId(), item.getQuantity());
+                        log.info("Hoàn tồn kho sản phẩm #{}: +{}", item.getProduct().getId(), item.getQuantity());
+                    }
+                }
+                orderRepository.save(order);
+            }
         }
-        orderRepository.save(order);
 
         log.info("VNPay IPN processed. txnRef={}, orderId={}, status={}",
                 txnRef, paymentTransaction.getOrderId(), paymentTransaction.getStatus());
@@ -213,19 +260,45 @@ public class VnPayService {
             paymentTransaction.setResponseCode(responseCode);
             paymentTransaction.setVnpTransactionNo(params.get("vnp_TransactionNo"));
             paymentTransaction.setPayDate(params.get("vnp_PayDate"));
-            paymentTransaction.setStatus(isSuccess ? PaymentStatus.SUCCESS : PaymentStatus.FAILED);
             paymentTransaction.setIpnConfirmed(true);
-            paymentRepository.save(paymentTransaction);
 
             Order order = orderRepository.findById(paymentTransaction.getOrderId()).orElse(null);
             if (order != null) {
                 if (isSuccess) {
-                    order.setPaymentStatus(OrderPaymentStatus.PAID);
-                    order.setStatus(OrderStatus.PROCESSING);
+                    if (order.getStatus() == OrderStatus.CANCELLED) {
+                        paymentTransaction.setStatus(PaymentStatus.REFUND_REQUIRED);
+                        paymentRepository.save(paymentTransaction);
+                        log.warn("Đơn hàng #{} đã bị hủy (CANCELLED) nhưng nhận được thanh toán thành công từ VNPay (txnRef={}). Chuyển giao dịch sang REFUND_REQUIRED.",
+                                order.getId(), txnRef);
+                    } else if (order.getStatus() == OrderStatus.PAID) {
+                        paymentTransaction.setStatus(PaymentStatus.SUCCESS);
+                        paymentRepository.save(paymentTransaction);
+                        log.info("Đơn hàng #{} đã ở trạng thái PAID. Giao dịch VNPay lặp lại hợp lệ (txnRef={}).", order.getId(), txnRef);
+                    } else {
+                        paymentTransaction.setStatus(PaymentStatus.SUCCESS);
+                        paymentRepository.save(paymentTransaction);
+                        order.setPaymentStatus(OrderPaymentStatus.PAID);
+                        stateMachine.transition(order, OrderStatus.PAID, "VNPAY", "Return URL Payment Successful");
+                        orderRepository.save(order);
+                    }
                 } else {
+                    paymentTransaction.setStatus(PaymentStatus.FAILED);
+                    paymentRepository.save(paymentTransaction);
                     order.setPaymentStatus(OrderPaymentStatus.FAILED);
+                    if (order.getStatus() == OrderStatus.AWAITING_PAYMENT || order.getStatus() == OrderStatus.PENDING) {
+                        stateMachine.transition(order, OrderStatus.CANCELLED, "VNPAY", "Return URL Payment Failed");
+                        for (OrderItem item : order.getOrderItems()) {
+                            if (item.getProduct() != null) {
+                                productRepository.increaseStockAtomic(item.getProduct().getId(), item.getQuantity());
+                                log.info("Hoàn tồn kho sản phẩm #{}: +{}", item.getProduct().getId(), item.getQuantity());
+                            }
+                        }
+                        orderRepository.save(order);
+                    }
                 }
-                orderRepository.save(order);
+            } else {
+                paymentTransaction.setStatus(isSuccess ? PaymentStatus.SUCCESS : PaymentStatus.FAILED);
+                paymentRepository.save(paymentTransaction);
             }
         }
 

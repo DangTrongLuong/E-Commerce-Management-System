@@ -2,6 +2,7 @@ databaseChangeLog:
   - changeSet:
       id: 015-create-notification
       author: oms
+      validCheckSum: "*"
       failOnError: false
       preConditions:
         - onFail: MARK_RAN
@@ -55,7 +56,7 @@ databaseChangeLog:
             baseTableName: notification
             baseColumnNames: user_id
             constraintName: fk_notification_user
-            referencedTableName: app_user
+            referencedTableName: users
             referencedColumnNames: id
             onDelete: CASCADE
             onUpdate: CASCADE

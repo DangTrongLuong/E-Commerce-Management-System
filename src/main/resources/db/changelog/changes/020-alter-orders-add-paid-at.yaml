@@ -1,0 +1,20 @@
+databaseChangeLog:
+  - changeSet:
+      id: 020-alter-orders-add-paid-at
+      author: oms
+      validCheckSum: "*"
+      failOnError: false
+      preConditions:
+        - onFail: MARK_RAN
+        - onError: MARK_RAN
+        - not:
+            - columnExists:
+                tableName: orders
+                columnName: paid_at
+      changes:
+        - addColumn:
+            tableName: orders
+            columns:
+              - column:
+                  name: paid_at
+                  type: TIMESTAMP

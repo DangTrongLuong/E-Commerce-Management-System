@@ -79,12 +79,23 @@ public class TicketService {
         Pageable pageable = PageRequest.of(page, cappedSize, Sort.by(Sort.Direction.DESC, "createdAt"));
 
         Page<PurchaseTicket> pageResult;
-        TicketStatus filterStatus = status != null ? status : TicketStatus.PENDING_APPROVAL;
-
-        if (currentUser.getRole() == Role.ADMIN) {
-            pageResult = ticketRepository.findByStatus(filterStatus, pageable);
+        if (status != null) {
+            if (currentUser.getRole() == Role.ADMIN) {
+                pageResult = ticketRepository.findByStatus(status, pageable);
+            } else {
+                pageResult = ticketRepository.findByApproverIdAndStatus(currentUser.getId(), status, pageable);
+            }
         } else {
-            pageResult = ticketRepository.findByApproverIdAndStatus(currentUser.getId(), filterStatus, pageable);
+            if (currentUser.getRole() == Role.ADMIN) {
+                pageResult = ticketRepository.findByStatusIn(
+                        List.of(TicketStatus.PENDING_AD_APPROVE, TicketStatus.PENDING_APPROVAL),
+                        pageable);
+            } else {
+                pageResult = ticketRepository.findByApproverIdAndStatusIn(
+                        currentUser.getId(),
+                        List.of(TicketStatus.PENDING_PO_APPROVE, TicketStatus.PENDING_APPROVAL),
+                        pageable);
+            }
         }
 
         return PageResponse.of(pageResult.map(this::mapToResponse));
@@ -127,12 +138,6 @@ public class TicketService {
         ticketRepository.save(ticket);
 
         recordHistory(ticket, TicketAction.APPROVE, fromStatus, toStatus, currentUser, comment);
-
-        if (toStatus == TicketStatus.APPROVED) {
-            eventPublisher.publishEvent(new OrderInvoiceApprovedEvent(
-                    ticket.getOrder().getId(),
-                    ticket.getOrder().getCustomer() != null ? ticket.getOrder().getCustomer().getEmail() : null));
-        }
 
         return mapToResponse(ticket);
     }
@@ -309,14 +314,44 @@ public class TicketService {
     }
 
     private void verifyApproverAuthority(PurchaseTicket ticket, AppUser currentUser) {
-        if (currentUser.getRole() == Role.ADMIN) {
+        TicketStatus status = ticket.getStatus();
+
+        if (status == TicketStatus.PENDING_PO_APPROVE) {
+            // Bước 1 cho đơn level 2: PO phải duyệt trước, Admin KHÔNG được duyệt vượt cấp!
+            if (currentUser.getRole() == Role.ADMIN) {
+                throw new AccessDeniedException("Đơn hàng này cần Product Owner (PO) duyệt trước. Quản trị viên (Admin) không được duyệt vượt cấp!");
+            }
+            if (currentUser.getRole() != Role.PRODUCT_OWNER || ticket.getApprover() == null
+                    || !ticket.getApprover().getId().equals(currentUser.getId())) {
+                throw new AccessDeniedException("Chỉ Product Owner (PO) phụ trách sản phẩm mới có quyền duyệt ở bước này");
+            }
             return;
         }
-        if (currentUser.getRole() == Role.PRODUCT_OWNER && ticket.getApprover() != null
-                && ticket.getApprover().getId().equals(currentUser.getId())) {
+
+        if (status == TicketStatus.PENDING_AD_APPROVE) {
+            // Bước 2 cho đơn level 2: Admin duyệt sau, PO KHÔNG được duyệt bước này!
+            if (currentUser.getRole() == Role.PRODUCT_OWNER) {
+                throw new AccessDeniedException("Vé đã được PO duyệt và đang chờ Quản trị viên (Admin) phê duyệt cấp 2. Product Owner (PO) không có quyền duyệt bước này!");
+            }
+            if (currentUser.getRole() != Role.ADMIN) {
+                throw new AccessDeniedException("Chỉ Quản trị viên (Admin) mới có quyền phê duyệt cấp 2");
+            }
             return;
         }
-        throw new AccessDeniedException("Bạn không có quyền thực thi tác vụ trên vé phê duyệt này");
+
+        if (status == TicketStatus.PENDING_APPROVAL) {
+            // Đơn thường (level 1 < 5 triệu)
+            if (currentUser.getRole() == Role.ADMIN) {
+                return;
+            }
+            if (currentUser.getRole() == Role.PRODUCT_OWNER && ticket.getApprover() != null
+                    && ticket.getApprover().getId().equals(currentUser.getId())) {
+                return;
+            }
+            throw new AccessDeniedException("Bạn không có quyền thực thi tác vụ trên vé phê duyệt này");
+        }
+
+        throw new InvalidTicketStatusException("Vé phê duyệt không ở trạng thái có thể duyệt (Trạng thái hiện tại: " + status + ")");
     }
 
     private void recordHistory(PurchaseTicket ticket, TicketAction action, TicketStatus from, TicketStatus to,

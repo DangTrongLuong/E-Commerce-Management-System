@@ -1,5 +1,7 @@
 package com.example.ecommerce.common.config;
 
+import com.example.ecommerce.user.entity.AppUser;
+import com.example.ecommerce.user.repository.AppUserRepository;
 import com.example.ecommerce.product.dto.ProductImportRequest;
 import com.example.ecommerce.product.entity.Product;
 import com.example.ecommerce.product.enums.ProductStatus;
@@ -40,6 +42,7 @@ import java.util.Iterator;
 public class ProductBatchConfig {
 
     private final ProductRepository productRepository;
+    private final AppUserRepository userRepository;
 
     @Bean
     @StepScope
@@ -128,7 +131,12 @@ public class ProductBatchConfig {
     }
 
     @Bean
-    public ItemProcessor<ProductImportRequest, Product> productItemProcessor() {
+    @StepScope
+    public ItemProcessor<ProductImportRequest, Product> productItemProcessor(
+            @Value("#{jobParameters['ownerId']}") Long ownerId) {
+
+        AppUser owner = (ownerId != null) ? userRepository.findById(ownerId).orElse(null) : null;
+
         return req -> {
             if (req.getName() == null || req.getName().isBlank()) {
                 log.warn("Record bị bỏ qua: Tên sản phẩm rỗng");
@@ -165,6 +173,7 @@ public class ProductBatchConfig {
                     .stock(req.getStock())
                     .imageUrl(req.getImageUrl())
                     .status(status)
+                    .owner(owner)
                     .build();
         };
     }

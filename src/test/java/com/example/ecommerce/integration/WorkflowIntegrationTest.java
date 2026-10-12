@@ -247,9 +247,70 @@ class WorkflowIntegrationTest {
         TicketResponse approvedTicket = ticketService.approveTicket(ticket.getId(), null);
         assertThat(approvedTicket.getStatus()).isEqualTo(TicketStatus.APPROVED);
 
-        // Verify Order status updated to CONFIRMED
-        OrderResponse confirmedOrder = orderService.getOrderById(orderRes.getId());
-        assertThat(confirmedOrder.getStatus()).isEqualTo(OrderStatus.CONFIRMED);
+        // Verify Order status is still PENDING (ready for checkout after approval)
+        OrderResponse pendingOrder = orderService.getOrderById(orderRes.getId());
+        assertThat(pendingOrder.getStatus()).isEqualTo(OrderStatus.PENDING);
+    }
+
+    // -------------------------------------------------------------------------
+    // Level 2 Multi-Stage Approval: Orders >= 5M (PO -> Admin)
+    // -------------------------------------------------------------------------
+
+    @Test
+    @DisplayName("Đơn hàng >= 5 triệu: Luồng duyệt 2 cấp PENDING_PO_APPROVE -> PENDING_AD_APPROVE -> APPROVED, cấm duyệt vượt cấp")
+    void testHighValueOrderMultiLevelApprovalFlow() {
+        authenticateAs(customerUser);
+
+        // Tạo đơn hàng 6 sản phẩm laptop (6 * 1.000.000 = 6.000.000 > 5 triệu)
+        OrderCreationRequest orderReq = OrderCreationRequest.builder()
+                .customerId(customer.getId())
+                .items(List.of(OrderItemRequest.builder()
+                        .productId(product1.getId()).quantity(6).build()))
+                .build();
+
+        OrderResponse orderRes = orderService.createOrder(orderReq);
+        assertThat(orderRes.getStatus()).isEqualTo(OrderStatus.PENDING);
+        assertThat(orderRes.getTotalAmount()).isEqualByComparingTo("6000000.00");
+
+        // 1. Kiểm tra vé được tạo với trạng thái ban đầu là PENDING_PO_APPROVE, requiredLevel = 2, currentLevel = 1
+        PurchaseTicket ticket = ticketRepository.findByOrderId(Long.valueOf(orderRes.getId())).orElseThrow();
+        assertThat(ticket.getStatus()).isEqualTo(TicketStatus.PENDING_PO_APPROVE);
+        assertThat(ticket.getRequiredLevel()).isEqualTo(2);
+        assertThat(ticket.getCurrentLevel()).isEqualTo(1);
+
+        // 2. Separation of duties: Requester không được tự duyệt
+        assertThatThrownBy(() -> ticketService.approveTicket(ticket.getId(), null))
+                .isInstanceOf(SelfApprovalNotAllowedException.class);
+
+        // 3. Chống duyệt vượt cấp: Admin cố duyệt khi vé đang ở PENDING_PO_APPROVE -> Bị từ chối
+        authenticateAs(adminUser);
+        assertThatThrownBy(() -> ticketService.approveTicket(ticket.getId(), null))
+                .isInstanceOf(org.springframework.security.access.AccessDeniedException.class)
+                .hasMessageContaining("cần Product Owner (PO) duyệt trước")
+                .hasMessageContaining("không được duyệt vượt cấp");
+
+        // 4. Bước 1: PO phụ trách duyệt vé
+        authenticateAs(poUser);
+        TicketResponse poApprovedTicket = ticketService.approveTicket(ticket.getId(), null);
+        assertThat(poApprovedTicket.getStatus()).isEqualTo(TicketStatus.PENDING_AD_APPROVE);
+        assertThat(poApprovedTicket.getCurrentLevel()).isEqualTo(2);
+
+        // 5. Chống duyệt sai vai trò: PO cố duyệt tiếp khi vé đã chuyển sang PENDING_AD_APPROVE -> Bị từ chối
+        assertThatThrownBy(() -> ticketService.approveTicket(ticket.getId(), null))
+                .isInstanceOf(org.springframework.security.access.AccessDeniedException.class)
+                .hasMessageContaining("chờ Quản trị viên (Admin) phê duyệt cấp 2")
+                .hasMessageContaining("không có quyền duyệt bước này");
+
+        // 6. Bước 2: Admin duyệt vé cấp 2 -> Chuyển sang APPROVED
+        authenticateAs(adminUser);
+        TicketResponse adminApprovedTicket = ticketService.approveTicket(ticket.getId(), null);
+        assertThat(adminApprovedTicket.getStatus()).isEqualTo(TicketStatus.APPROVED);
+        assertThat(adminApprovedTicket.getCurrentLevel()).isEqualTo(2);
+
+        // 7. Verify trạng thái cuối cùng
+        PurchaseTicket finalTicket = ticketRepository.findById(ticket.getId()).orElseThrow();
+        assertThat(finalTicket.getStatus()).isEqualTo(TicketStatus.APPROVED);
+        assertThat(finalTicket.getDecidedAt()).isNotNull();
     }
 
     // -------------------------------------------------------------------------

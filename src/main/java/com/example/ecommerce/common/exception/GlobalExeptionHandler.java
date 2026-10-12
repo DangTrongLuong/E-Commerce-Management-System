@@ -93,6 +93,18 @@ public class GlobalExeptionHandler {
         return build(HttpStatus.BAD_REQUEST, "MIXED_OWNER_ORDER", ex.getMessage());
     }
 
+    @ExceptionHandler(IdempotencyKeyRequiredException.class)
+    public ResponseEntity<ApiResponse<Object>> handleIdempotencyKeyRequired(IdempotencyKeyRequiredException ex) {
+        log.warn("Idempotency key required: {}", ex.getMessage());
+        return build(HttpStatus.BAD_REQUEST, "IDEMPOTENCY_KEY_REQUIRED", ex.getMessage());
+    }
+
+    @ExceptionHandler(AmountMismatchException.class)
+    public ResponseEntity<ApiResponse<Object>> handleAmountMismatch(AmountMismatchException ex) {
+        log.warn("Amount mismatch: {}", ex.getMessage());
+        return build(HttpStatus.BAD_REQUEST, "AMOUNT_MISMATCH", ex.getMessage());
+    }
+
     // 401 UNAUTHORIZED
     @ExceptionHandler(AuthenticationException.class)
     public ResponseEntity<ApiResponse<Object>> handleAuthentication(AuthenticationException ex) {
@@ -102,6 +114,12 @@ public class GlobalExeptionHandler {
     @ExceptionHandler(TokenExpiredException.class)
     public ResponseEntity<ApiResponse<Object>> handleTokenExpired(TokenExpiredException ex) {
         return build(HttpStatus.UNAUTHORIZED, "TOKEN_EXPIRED", ex.getMessage());
+    }
+
+    @ExceptionHandler(InvalidSignatureException.class)
+    public ResponseEntity<ApiResponse<Object>> handleInvalidSignature(InvalidSignatureException ex) {
+        log.warn("Invalid signature: {}", ex.getMessage());
+        return build(HttpStatus.UNAUTHORIZED, "INVALID_SIGNATURE", ex.getMessage());
     }
 
     // 403 FORBIDDEN
@@ -145,6 +163,24 @@ public class GlobalExeptionHandler {
     public ResponseEntity<ApiResponse<Object>> handleDuplicateResource(DuplicateResourceException ex) {
         log.warn("Duplicate resource: {}", ex.getMessage());
         return build(HttpStatus.CONFLICT, "DUPLICATE_RESOURCE", ex.getMessage());
+    }
+
+    @ExceptionHandler(IdempotencyKeyReusedException.class)
+    public ResponseEntity<ApiResponse<Object>> handleIdempotencyKeyReused(IdempotencyKeyReusedException ex) {
+        log.warn("Idempotency key reused: {}", ex.getMessage());
+        return build(HttpStatus.CONFLICT, "IDEMPOTENCY_KEY_REUSED", ex.getMessage());
+    }
+
+    @ExceptionHandler(OrderNotCheckoutableException.class)
+    public ResponseEntity<ApiResponse<Object>> handleOrderNotCheckoutable(OrderNotCheckoutableException ex) {
+        log.warn("Order not checkoutable: {}", ex.getMessage());
+        return build(HttpStatus.CONFLICT, "ORDER_NOT_CHECKOUTABLE", ex.getMessage());
+    }
+
+    @ExceptionHandler(EmailNotResendableException.class)
+    public ResponseEntity<ApiResponse<Object>> handleEmailNotResendable(EmailNotResendableException ex) {
+        log.warn("Email not resendable: {}", ex.getMessage());
+        return build(HttpStatus.CONFLICT, "EMAIL_NOT_RESENDABLE", ex.getMessage());
     }
 
     @ExceptionHandler(InsufficientStockException.class)

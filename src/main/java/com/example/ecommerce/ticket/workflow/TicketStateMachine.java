@@ -27,16 +27,78 @@ public class TicketStateMachine {
         TicketStatus nextStatus;
 
         switch (current) {
+            case PENDING_PO_APPROVE -> {
+                switch (action) {
+                    case APPROVE -> {
+                        ticket.setCurrentLevel(2);
+                        nextStatus = TicketStatus.PENDING_AD_APPROVE;
+                    }
+                    case REJECT -> {
+                        validateComment(comment);
+                        nextStatus = TicketStatus.REJECTED;
+                        ticket.setDecidedAt(LocalDateTime.now());
+                        cancelOrderAndRefundStock(ticket.getOrder(), "Ticket rejected: " + comment);
+                    }
+                    case RETURN -> {
+                        validateComment(comment);
+                        nextStatus = TicketStatus.RETURNED;
+                    }
+                    case CANCEL -> {
+                        nextStatus = TicketStatus.CANCELLED;
+                        ticket.setDecidedAt(LocalDateTime.now());
+                        cancelOrderAndRefundStock(ticket.getOrder(), "Ticket cancelled by requester");
+                    }
+                    case EXPIRE -> {
+                        nextStatus = TicketStatus.EXPIRED;
+                        ticket.setDecidedAt(LocalDateTime.now());
+                        cancelOrderAndRefundStock(ticket.getOrder(), "Ticket expired (SLA exceeded)");
+                    }
+                    default -> throw new InvalidTicketStatusException(
+                            "Không thể thực hiện hành động " + action + " khi vé phê duyệt đang ở trạng thái " + current);
+                }
+            }
+            case PENDING_AD_APPROVE -> {
+                switch (action) {
+                    case APPROVE -> {
+                        ticket.setCurrentLevel(2);
+                        nextStatus = TicketStatus.APPROVED;
+                        ticket.setDecidedAt(LocalDateTime.now());
+                    }
+                    case REJECT -> {
+                        validateComment(comment);
+                        nextStatus = TicketStatus.REJECTED;
+                        ticket.setDecidedAt(LocalDateTime.now());
+                        cancelOrderAndRefundStock(ticket.getOrder(), "Ticket rejected: " + comment);
+                    }
+                    case RETURN -> {
+                        validateComment(comment);
+                        nextStatus = TicketStatus.RETURNED;
+                    }
+                    case CANCEL -> {
+                        nextStatus = TicketStatus.CANCELLED;
+                        ticket.setDecidedAt(LocalDateTime.now());
+                        cancelOrderAndRefundStock(ticket.getOrder(), "Ticket cancelled by requester");
+                    }
+                    case EXPIRE -> {
+                        nextStatus = TicketStatus.EXPIRED;
+                        ticket.setDecidedAt(LocalDateTime.now());
+                        cancelOrderAndRefundStock(ticket.getOrder(), "Ticket expired (SLA exceeded)");
+                    }
+                    default -> throw new InvalidTicketStatusException(
+                            "Không thể thực hiện hành động " + action + " khi vé phê duyệt đang ở trạng thái " + current);
+                }
+            }
             case PENDING_APPROVAL -> {
                 switch (action) {
                     case APPROVE -> {
                         if (ticket.getCurrentLevel() < ticket.getRequiredLevel()) {
                             ticket.setCurrentLevel(ticket.getCurrentLevel() + 1);
-                            nextStatus = TicketStatus.PENDING_APPROVAL;
+                            nextStatus = (ticket.getCurrentLevel() == 2)
+                                    ? TicketStatus.PENDING_AD_APPROVE
+                                    : TicketStatus.PENDING_APPROVAL;
                         } else {
                             nextStatus = TicketStatus.APPROVED;
                             ticket.setDecidedAt(LocalDateTime.now());
-                            ticket.getOrder().setStatus(OrderStatus.CONFIRMED);
                         }
                     }
                     case REJECT -> {
@@ -67,7 +129,13 @@ public class TicketStateMachine {
                 switch (action) {
                     case UPDATE -> nextStatus = TicketStatus.RETURNED;
                     case RESUBMIT -> {
-                        nextStatus = TicketStatus.PENDING_APPROVAL;
+                        if (ticket.getRequiredLevel() == 2) {
+                            nextStatus = TicketStatus.PENDING_PO_APPROVE;
+                            ticket.setCurrentLevel(1);
+                        } else {
+                            nextStatus = TicketStatus.PENDING_APPROVAL;
+                            ticket.setCurrentLevel(1);
+                        }
                         ticket.setDueAt(LocalDateTime.now().plusHours(48)); // reset SLA
                     }
                     case CANCEL -> {

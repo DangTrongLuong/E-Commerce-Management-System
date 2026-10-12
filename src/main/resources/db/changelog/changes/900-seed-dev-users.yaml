@@ -6,7 +6,7 @@ databaseChangeLog:
       failOnError: false
       changes:
         - insert:
-            tableName: app_user
+            tableName: users
             columns:
               - column: { name: id, valueNumeric: 1 }
               - column: { name: email, value: "admin@example.com" }
@@ -15,7 +15,7 @@ databaseChangeLog:
               - column: { name: status, value: "ACTIVE" }
 
         - insert:
-            tableName: app_user
+            tableName: users
             columns:
               - column: { name: id, valueNumeric: 2 }
               - column: { name: email, value: "po1@example.com" }
@@ -24,7 +24,7 @@ databaseChangeLog:
               - column: { name: status, value: "ACTIVE" }
 
         - insert:
-            tableName: app_user
+            tableName: users
             columns:
               - column: { name: id, valueNumeric: 3 }
               - column: { name: email, value: "po2@example.com" }
@@ -33,7 +33,7 @@ databaseChangeLog:
               - column: { name: status, value: "ACTIVE" }
 
         - insert:
-            tableName: app_user
+            tableName: users
             columns:
               - column: { name: id, valueNumeric: 4 }
               - column: { name: email, value: "user1@example.com" }
@@ -42,7 +42,7 @@ databaseChangeLog:
               - column: { name: status, value: "ACTIVE" }
 
         - insert:
-            tableName: app_user
+            tableName: users
             columns:
               - column: { name: id, valueNumeric: 5 }
               - column: { name: email, value: "user2@example.com" }

@@ -40,5 +40,18 @@ app:
       secret: default-secret-key-must-be-at-least-256-bits-long-for-hmac-sha256
       access-token-ttl-minutes: 30
       refresh-token-ttl-days: 7
+  payment:
+    timeout-minutes: 15
   ticket:
     sla-hours: 48
+
+vnpay:
+  tmn-code: test_tmn
+  hash-secret: test_secret
+  pay-url: http://localhost:8080/vnpay
+  return-url: http://localhost:8080/vnpay/return
+
+cloudinary:
+  cloud-name: test_cloud
+  api-key: test_key
+  api-secret: test_secret

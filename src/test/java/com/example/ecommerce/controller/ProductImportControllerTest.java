@@ -1,5 +1,6 @@
 package com.example.ecommerce.controller;
 
+import com.example.ecommerce.notification.service.EmailService;
 import com.example.ecommerce.product.dto.ProductImportResultResponse;
 import com.example.ecommerce.product.service.ProductBatchService;
 import org.junit.jupiter.api.DisplayName;
@@ -29,7 +30,7 @@ class ProductImportControllerTest {
     private ProductBatchService productBatchService;
 
     @MockBean
-    private com.example.ecommerce.notification.service.EmailService emailService;
+    private EmailService emailService;
 
     @Test
     @WithMockUser(roles = "ADMIN")

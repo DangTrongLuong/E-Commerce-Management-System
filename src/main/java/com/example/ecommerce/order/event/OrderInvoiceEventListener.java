@@ -26,17 +26,9 @@ public class OrderInvoiceEventListener {
     @Async
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
     public void handleOrderInvoiceApproved(OrderInvoiceApprovedEvent event) {
-        try {
-            log.info("Chạy tác vụ sinh PDF & gửi Email bất đồng bộ cho đơn hàng #{}", event.getOrderId());
-            byte[] pdfBytes = pdfInvoiceService.generateInvoicePdf(event.getOrderId());
-            String filePath = pdfInvoiceService.saveInvoiceToDisk(event.getOrderId(), pdfBytes);
-            if (filePath != null) {
-                File pdfFile = new File(filePath);
-                emailService.sendInvoiceEmailAsync(event.getOrderId(), event.getRecipientEmail(), pdfFile);
-            }
-        } catch (Exception e) {
-            log.warn("Lỗi khi sinh PDF invoice hoặc gửi Mail cho đơn hàng #{}: {}", event.getOrderId(), e.getMessage());
-        }
+        // REQ-03: Không sinh PDF và không gửi email kèm file khi duyệt đơn nữa.
+        // Email xác nhận thanh toán được chuyển sang quản lý qua EMAIL_OUTBOX khi đơn chuyển PAID.
+        log.info("Bỏ qua sinh PDF & gửi Email khi duyệt đơn hàng #{} (chuyển sang luồng EMAIL_OUTBOX)", event.getOrderId());
     }
 
 }

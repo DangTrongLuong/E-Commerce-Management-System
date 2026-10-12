@@ -1,0 +1,54 @@
+databaseChangeLog:
+  - changeSet:
+      id: 022-create-idempotency-record
+      author: oms
+      validCheckSum: "*"
+      failOnError: false
+      preConditions:
+        - onFail: MARK_RAN
+        - onError: MARK_RAN
+        - not:
+            - tableExists:
+                tableName: idempotency_record
+      changes:
+        - createTable:
+            tableName: idempotency_record
+            columns:
+              - column:
+                  name: id
+                  type: BIGINT
+                  autoIncrement: true
+                  constraints:
+                    primaryKey: true
+                    primaryKeyName: pk_idempotency_record
+                    nullable: false
+              - column:
+                  name: idempotency_key
+                  type: VARCHAR(255)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: order_id
+                  type: INT
+                  constraints:
+                    nullable: false
+              - column:
+                  name: response_json
+                  type: TEXT
+                  constraints:
+                    nullable: false
+              - column:
+                  name: created_at
+                  type: TIMESTAMP
+                  defaultValueComputed: CURRENT_TIMESTAMP
+                  constraints:
+                    nullable: false
+
+        - createIndex:
+            indexName: idx_idempotency_key_order
+            tableName: idempotency_record
+            columns:
+              - column:
+                  name: idempotency_key
+              - column:
+                  name: order_id

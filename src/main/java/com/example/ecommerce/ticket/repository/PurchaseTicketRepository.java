@@ -35,7 +35,13 @@ public interface PurchaseTicketRepository extends JpaRepository<PurchaseTicket, 
     Page<PurchaseTicket> findByApproverIdAndStatus(Long approverId, TicketStatus status, Pageable pageable);
 
     @EntityGraph(attributePaths = { "order", "order.customer", "requester", "approver" })
+    Page<PurchaseTicket> findByApproverIdAndStatusIn(Long approverId, Collection<TicketStatus> statuses, Pageable pageable);
+
+    @EntityGraph(attributePaths = { "order", "order.customer", "requester", "approver" })
     Page<PurchaseTicket> findByStatus(TicketStatus status, Pageable pageable);
+
+    @EntityGraph(attributePaths = { "order", "order.customer", "requester", "approver" })
+    Page<PurchaseTicket> findByStatusIn(Collection<TicketStatus> statuses, Pageable pageable);
 
     List<PurchaseTicket> findByStatusInAndDueAtBefore(Collection<TicketStatus> statuses, LocalDateTime dueAt);
 }

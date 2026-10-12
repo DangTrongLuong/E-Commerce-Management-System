@@ -63,8 +63,19 @@ app:
     port: ${REDIS_PORT}
     username: ${REDIS_USERNAME}
     password: ${REDIS_PASSWORD}
-    ssl: ${REDIS_SSL}
+    ssl: ${REDIS_SSL} 
     timeout-ms: 3000
+  security:
+    jwt:
+      secret: ${JWT_SECRET}
+      access-token-ttl-minutes: ${JWT_ACCESS_TOKEN_TTL_MINUTES}
+      refresh-token-ttl-days: ${JWT_REFRESH_TOKEN_TTL_DAYS}
+  payment:
+    timeout-minutes: ${PAYMENT_TIMEOUT_MINUTES:15}
+  email:
+    backoff-base-seconds: ${EMAIL_BACKOFF_BASE_SECONDS:60}
+  demo:
+    fail-after-paid: ${DEMO_FAIL_AFTER_PAID:false}
 
 server:
   port: 8080
@@ -75,10 +86,6 @@ logging:
     org.springframework.security: INFO
     org.hibernate.SQL: WARN
 
-jwt:
-  secret: ${JWT_SECRET}
-  expiration: ${JWT_EXPIRATION}
-  refresh-expiration: ${JWT_REFRESH_EXPIRATION}
 
 vnpay:
   tmn-code: ${VNPAY_TMN_CODE}

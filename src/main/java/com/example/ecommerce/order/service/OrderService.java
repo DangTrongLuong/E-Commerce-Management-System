@@ -37,8 +37,21 @@ import com.example.ecommerce.common.util.SecurityUtils;
 import com.example.ecommerce.common.util.SortUtils;
 import com.example.ecommerce.order.dto.OrderRefundActionRequest;
 import com.example.ecommerce.order.dto.OrderRefundRequest;
+import com.example.ecommerce.order.dto.OrderStatusHistoryResponse;
 import com.example.ecommerce.order.enums.OrderPaymentStatus;
+import com.example.ecommerce.order.repository.OrderStatusHistoryRepository;
 import com.example.ecommerce.ticket.repository.TicketHistoryRepository;
+import com.example.ecommerce.common.exception.IdempotencyKeyRequiredException;
+import com.example.ecommerce.common.exception.IdempotencyKeyReusedException;
+import com.example.ecommerce.common.exception.OrderNotCheckoutableException;
+import com.example.ecommerce.order.dto.OrderCheckoutResponse;
+import com.example.ecommerce.order.entity.IdempotencyRecord;
+import com.example.ecommerce.order.repository.IdempotencyRecordRepository;
+import com.example.ecommerce.payment.dto.PaymentCreationRequest;
+import com.example.ecommerce.payment.dto.PaymentUrlResponse;
+import com.example.ecommerce.payment.service.VnPayService;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import jakarta.servlet.http.HttpServletRequest;
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
 import lombok.experimental.FieldDefaults;
@@ -70,6 +83,11 @@ public class OrderService {
     ProductRepository productRepository;
     PurchaseTicketRepository ticketRepository;
     TicketHistoryRepository historyRepository;
+    OrderStatusHistoryRepository orderStatusHistoryRepository;
+    IdempotencyRecordRepository idempotencyRecordRepository;
+    OrderStatusStateMachine stateMachine;
+    VnPayService vnPayService;
+    ObjectMapper objectMapper;
     OrderMapper orderMapper;
     SecurityUtils securityUtils;
     ApplicationEventPublisher eventPublisher;
@@ -172,15 +190,9 @@ public class OrderService {
             if (total.compareTo(new BigDecimal("500000")) < 0) {
                 requiredLevel = 0;
                 ticketStatus = TicketStatus.APPROVED;
-                savedOrder.setStatus(OrderStatus.CONFIRMED);
-                orderRepository.save(savedOrder);
-
-                eventPublisher.publishEvent(new OrderInvoiceApprovedEvent(
-                        savedOrder.getId(),
-                        savedOrder.getCustomer() != null ? savedOrder.getCustomer().getEmail() : null));
-
             } else if (total.compareTo(new BigDecimal("5000000")) >= 0) {
                 requiredLevel = 2;
+                ticketStatus = TicketStatus.PENDING_PO_APPROVE;
             }
 
             PurchaseTicket ticket = PurchaseTicket.builder()
@@ -197,7 +209,7 @@ public class OrderService {
             TicketHistory createHistory = TicketHistory.builder()
                     .ticket(ticket)
                     .action(TicketAction.CREATE)
-                    .fromStatus(TicketStatus.PENDING_APPROVAL)
+                    .fromStatus(ticketStatus)
                     .toStatus(ticketStatus)
                     .actor(requester)
                     .comment("Sub-order created for PO #" + (poOwner != null ? poOwner.getId() : "N/A"))
@@ -218,6 +230,89 @@ public class OrderService {
     public OrderResponse createOrder(OrderCreationRequest request) {
         List<OrderResponse> orders = createOrders(request);
         return orders.get(0);
+    }
+
+    // =========================================================================
+    // REQ-02. CHECKOUT ĐƠN HÀNG VỚI IDEMPOTENCY-KEY & VNPAY
+    // =========================================================================
+
+    @Transactional(rollbackFor = Exception.class)
+    public OrderCheckoutResponse checkoutOrder(Integer id, String idempotencyKey, String bankCode, HttpServletRequest request) {
+        if (idempotencyKey == null || idempotencyKey.trim().isEmpty()) {
+            throw new IdempotencyKeyRequiredException("Header Idempotency-Key là bắt buộc khi checkout");
+        }
+
+        // 1. Kiểm tra Idempotency Record
+        Optional<IdempotencyRecord> recordOpt = idempotencyRecordRepository.findByIdempotencyKey(idempotencyKey);
+        if (recordOpt.isPresent()) {
+            IdempotencyRecord record = recordOpt.get();
+            if (!record.getOrderId().equals(id)) {
+                throw new IdempotencyKeyReusedException(
+                        "Khóa Idempotency-Key '" + idempotencyKey + "' đã được sử dụng cho đơn hàng khác #" + record.getOrderId());
+            }
+
+            // Cùng key, cùng orderId -> Kiểm tra hạn 24 giờ
+            LocalDateTime cutoff24h = LocalDateTime.now().minusHours(24);
+            if (record.getCreatedAt().isAfter(cutoff24h)) {
+                try {
+                    log.info("Idempotent hit cho đơn hàng #{}, key {}. Trả về kết quả checkout trước đó.", id, idempotencyKey);
+                    return objectMapper.readValue(record.getResponseJson(), OrderCheckoutResponse.class);
+                } catch (Exception e) {
+                    log.error("Lỗi parse responseJson từ IdempotencyRecord cho key {}", idempotencyKey, e);
+                }
+            }
+        }
+
+        // 2. Đọc đơn hàng với khóa bi quan
+        Order order = orderRepository.findByIdForUpdate(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy đơn hàng với mã ID: " + id));
+
+        securityUtils.verifyUserOrAdmin(Long.valueOf(order.getCustomer().getId()));
+
+        if (order.getStatus() != OrderStatus.PENDING && order.getStatus() != OrderStatus.AWAITING_PAYMENT) {
+            throw new OrderNotCheckoutableException(
+                    "Đơn hàng #" + order.getId() + " không ở trạng thái được phép checkout (chỉ cho phép khi PENDING hoặc AWAITING_PAYMENT). Trạng thái hiện tại: " + order.getStatus());
+        }
+
+        // Kiểm tra vé phê duyệt (PurchaseTicket) nếu có
+        Optional<PurchaseTicket> ticketOpt = ticketRepository.findByOrderId(Long.valueOf(order.getId()));
+        if (ticketOpt.isPresent() && ticketOpt.get().getStatus() != TicketStatus.APPROVED) {
+            throw new OrderNotCheckoutableException(
+                    "Đơn hàng #" + order.getId() + " chưa được phê duyệt vé mua hàng (Trạng thái vé: "
+                            + ticketOpt.get().getStatus() + "). Vui lòng chờ Người kiểm duyệt duyệt đơn trước khi thanh toán!");
+        }
+
+        // 3. Tạo URL thanh toán VNPay (VnPayService sẽ chuyển order sang AWAITING_PAYMENT & tạo PaymentTransaction)
+        PaymentCreationRequest paymentRequest = PaymentCreationRequest.builder()
+                .orderId(order.getId())
+                .bankCode(bankCode)
+                .build();
+        PaymentUrlResponse paymentUrlResponse = vnPayService.createPaymentUrl(paymentRequest, request);
+
+        OrderCheckoutResponse checkoutResponse = OrderCheckoutResponse.builder()
+                .orderId(order.getId())
+                .status(OrderStatus.AWAITING_PAYMENT)
+                .paymentId(paymentUrlResponse.getPaymentId())
+                .amount(order.getTotalAmount())
+                .paymentUrl(paymentUrlResponse.getPaymentUrl())
+                .expiresAt(paymentUrlResponse.getExpireAt())
+                .build();
+
+        // 4. Lưu Idempotency Record để bảo đảm tính idempotent trong 24 giờ
+        try {
+            String responseJson = objectMapper.writeValueAsString(checkoutResponse);
+            IdempotencyRecord newRecord = IdempotencyRecord.builder()
+                    .idempotencyKey(idempotencyKey)
+                    .orderId(order.getId())
+                    .responseJson(responseJson)
+                    .createdAt(LocalDateTime.now())
+                    .build();
+            idempotencyRecordRepository.save(newRecord);
+        } catch (Exception e) {
+            log.error("Lỗi khi lưu IdempotencyRecord cho đơn hàng #{}", order.getId(), e);
+        }
+
+        return checkoutResponse;
     }
 
     // =========================================================================
@@ -441,16 +536,21 @@ public class OrderService {
             return orderMapper.toResponse(order);
         }
 
-        if (currentStatus == OrderStatus.PROCESSING && newStatus == OrderStatus.COMPLETED) {
-            AppUser currentUser = securityUtils.getCurrentUser();
-            verifyProductOwnerOrAdmin(order, currentUser);
+        AppUser currentUser = securityUtils.getCurrentUser();
+        verifyProductOwnerOrAdmin(order, currentUser);
 
-            order.setStatus(OrderStatus.COMPLETED);
+        if (currentStatus == OrderStatus.PAID && newStatus == OrderStatus.CONFIRMED) {
+            stateMachine.transition(order, OrderStatus.CONFIRMED, currentUser.getEmail(), "Admin xác nhận đơn hàng");
+            return orderMapper.toResponse(orderRepository.save(order));
+        }
+
+        if ((currentStatus == OrderStatus.CONFIRMED || currentStatus == OrderStatus.PROCESSING) && newStatus == OrderStatus.COMPLETED) {
+            stateMachine.transition(order, OrderStatus.COMPLETED, currentUser.getEmail(), "Hoàn tất đơn hàng");
             return orderMapper.toResponse(orderRepository.save(order));
         }
 
         throw new InvalidOrderStatusException("Không thể chuyển trạng thái đơn hàng từ " + currentStatus + " sang " + newStatus
-                + " qua API này. Vui lòng sử dụng Quy trình Phê duyệt.");
+                + " qua API này.");
     }
 
     @Transactional(rollbackFor = Exception.class)
@@ -630,5 +730,24 @@ public class OrderService {
             }
         }
         throw new AccessDeniedException("Bạn không có quyền truy cập hoặc thao tác trên đơn hàng #" + order.getId());
+    }
+
+    @Transactional(readOnly = true)
+    public List<OrderStatusHistoryResponse> getOrderHistory(int id) {
+        Order order = findOrderByIdOrThrow(id);
+        verifyOrderVisibility(order);
+
+        return orderStatusHistoryRepository.findByOrderIdOrderByCreatedAtAsc(id)
+                .stream()
+                .map(history -> OrderStatusHistoryResponse.builder()
+                        .id(history.getId())
+                        .orderId(history.getOrderId())
+                        .fromStatus(history.getFromStatus())
+                        .toStatus(history.getToStatus())
+                        .changedBy(history.getChangedBy())
+                        .reason(history.getReason())
+                        .createdAt(history.getCreatedAt())
+                        .build())
+                .collect(Collectors.toList());
     }
 }

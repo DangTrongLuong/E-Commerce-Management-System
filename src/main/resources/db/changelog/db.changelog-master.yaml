@@ -48,6 +48,18 @@ databaseChangeLog:
   - include:
       file: changes/019-alter-product-add-image-url.yaml
       relativeToChangelogFile: true
+  - include:
+      file: changes/020-alter-orders-add-paid-at.yaml
+      relativeToChangelogFile: true
+  - include:
+      file: changes/021-create-order-status-history.yaml
+      relativeToChangelogFile: true
+  - include:
+      file: changes/022-create-idempotency-record.yaml
+      relativeToChangelogFile: true
+  - include:
+      file: changes/023-create-email-outbox-table.yaml
+      relativeToChangelogFile: true
 #   - include:
 #       file: changes/900-seed-dev-users.yaml
 #       relativeToChangelogFile: true

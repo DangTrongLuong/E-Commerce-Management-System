@@ -1,17 +1,15 @@
 databaseChangeLog:
   - changeSet:
-      id: 018-rename-app-user-to-users
+      id: 018-drop-app-user-if-exists
       author: oms
+      failOnError: false
       preConditions:
         - onFail: MARK_RAN
         - onError: MARK_RAN
         - tableExists:
             tableName: app_user
-        - not:
-            - tableExists:
-                tableName: users
       changes:
-        - renameTable:
-            oldTableName: app_user
-            newTableName: users
+        - dropTable:
+            tableName: app_user
+            cascadeConstraints: true
 

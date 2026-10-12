@@ -24,10 +24,13 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
+import com.example.ecommerce.order.dto.OrderCheckoutResponse;
 import com.example.ecommerce.order.service.PdfInvoiceService;
 
 import com.example.ecommerce.order.dto.OrderRefundActionRequest;
 import com.example.ecommerce.order.dto.OrderRefundRequest;
+import com.example.ecommerce.order.dto.OrderStatusHistoryResponse;
+import jakarta.servlet.http.HttpServletRequest;
 
 @Slf4j
 @RestController
@@ -55,6 +58,19 @@ public class OrderController {
         return ResponseEntity
                 .status(HttpStatus.CREATED)
                 .body(ApiResponse.success("Tạo đơn hàng thành công", orderResponses));
+    }
+
+    // Checkout đơn hàng (REQ-02 - Idempotent Checkout)
+    @PostMapping("/{id}/checkout")
+    @PreAuthorize("isAuthenticated()")
+    @Operation(summary = "Checkout đơn hàng (REQ-02 - Idempotent Checkout)")
+    public ResponseEntity<ApiResponse<OrderCheckoutResponse>> checkoutOrder(
+            @PathVariable Integer id,
+            @RequestHeader(value = "Idempotency-Key", required = false) String idempotencyKey,
+            @RequestParam(required = false) String bankCode,
+            HttpServletRequest request) {
+        OrderCheckoutResponse response = orderService.checkoutOrder(id, idempotencyKey, bankCode, request);
+        return ResponseEntity.ok(ApiResponse.success("Checkout đơn hàng thành công", response));
     }
 
     // =========================================================================
@@ -207,5 +223,15 @@ public class OrderController {
             @RequestBody(required = false) OrderRefundActionRequest request) {
         OrderResponse response = orderService.rejectRefund(id, request);
         return ResponseEntity.ok(ApiResponse.success("Đã từ chối yêu cầu hoàn tiền", response));
+    }
+
+    // Lấy lịch sử chuyển trạng thái của đơn hàng (User / PO / Admin)
+    @GetMapping("/{id}/history")
+    @PreAuthorize("isAuthenticated()")
+    @Operation(summary = "Lấy lịch sử chuyển trạng thái của đơn hàng (User / PO / Admin)")
+    public ResponseEntity<ApiResponse<List<OrderStatusHistoryResponse>>> getOrderHistory(
+            @PathVariable Integer id) {
+        List<OrderStatusHistoryResponse> history = orderService.getOrderHistory(id);
+        return ResponseEntity.ok(ApiResponse.success("Lấy lịch sử đơn hàng thành công", history));
     }
 }
