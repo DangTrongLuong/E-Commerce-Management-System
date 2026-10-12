@@ -387,6 +387,7 @@ public class OrderService {
         // Tính lại tổng tiền đơn hàng
         order.recaculateTotalAmount();
         Order savedOrder = orderRepository.save(order);
+        syncTicketStatusWithOrderTotal(savedOrder);
         log.info("Thêm sản phẩm #{} (số lượng {}) vào đơn hàng #{} thành công", productId, requestedQuantity, orderId);
 
         return orderMapper.toResponse(savedOrder);
@@ -425,6 +426,7 @@ public class OrderService {
         order.recaculateTotalAmount();
 
         Order saveOrder = orderRepository.save(order);
+        syncTicketStatusWithOrderTotal(saveOrder);
 
         log.info("Cập nhật số lượng sản phẩm #{} trong đơn hàng #{} từ {} -> {} thành công", productId, orderId,
                 oldQuantity, newQuantity);
@@ -440,6 +442,8 @@ public class OrderService {
         for (OrderItem item : order.getOrderItems()) {
             productRepository.increaseStockAtomic(item.getProduct().getId(), item.getQuantity());
         }
+
+        ticketRepository.findByOrderId(Long.valueOf(orderId)).ifPresent(ticketRepository::delete);
 
         orderRepository.delete(order);
 
@@ -461,6 +465,7 @@ public class OrderService {
 
         order.recaculateTotalAmount();
         Order savedOrder = orderRepository.save(order);
+        syncTicketStatusWithOrderTotal(savedOrder);
 
         log.info("Đã xóa sản phẩm #{} khỏi đơn hàng #{}, hoàn lại stock {}", productId, orderId,
                 existingItem.getQuantity());
@@ -698,6 +703,56 @@ public class OrderService {
             throw new InvalidOrderStatusException(
                     "Đơn hàng đang không ở trạng thái yêu cầu hoàn tiền (REFUND_REQUESTED). Trạng thái hiện tại: "
                             + order.getStatus());
+        }
+    }
+
+    private void syncTicketStatusWithOrderTotal(Order order) {
+        if (order == null) {
+            return;
+        }
+
+        Optional<PurchaseTicket> ticketOpt = ticketRepository.findByOrderId(Long.valueOf(order.getId()));
+        if (ticketOpt.isEmpty()) {
+            return;
+        }
+
+        PurchaseTicket ticket = ticketOpt.get();
+        BigDecimal total = order.getTotalAmount() != null ? order.getTotalAmount() : BigDecimal.ZERO;
+
+        int requiredLevel = 1;
+        TicketStatus targetStatus = TicketStatus.PENDING_APPROVAL;
+
+        if (total.compareTo(new BigDecimal("500000")) < 0) {
+            requiredLevel = 0;
+            targetStatus = TicketStatus.APPROVED;
+        } else if (total.compareTo(new BigDecimal("5000000")) >= 0) {
+            requiredLevel = 2;
+            targetStatus = TicketStatus.PENDING_PO_APPROVE;
+        }
+
+        TicketStatus oldStatus = ticket.getStatus();
+        Integer oldLevel = ticket.getRequiredLevel();
+
+        if (oldStatus != targetStatus || !Objects.equals(oldLevel, requiredLevel)) {
+            ticket.setRequiredLevel(requiredLevel);
+            ticket.setCurrentLevel(requiredLevel == 0 ? 0 : 1);
+            ticket.setStatus(targetStatus);
+            ticket.setDecidedAt(requiredLevel == 0 ? LocalDateTime.now() : null);
+
+            AppUser currentUser = securityUtils.getCurrentUser();
+            TicketHistory updateHistory = TicketHistory.builder()
+                    .ticket(ticket)
+                    .action(TicketAction.UPDATE)
+                    .fromStatus(oldStatus)
+                    .toStatus(targetStatus)
+                    .actor(currentUser)
+                    .comment("Đồng bộ trạng thái vé do thay đổi giá trị đơn hàng (" + total + " VNĐ)")
+                    .build();
+            ticket.addHistory(updateHistory);
+
+            ticketRepository.save(ticket);
+            log.info("Đã đồng bộ lại vé #{} cho đơn hàng #{}: {} (level {}) -> {} (level {}) do tổng tiền = {}",
+                    ticket.getId(), order.getId(), oldStatus, oldLevel, targetStatus, requiredLevel, total);
         }
     }
 

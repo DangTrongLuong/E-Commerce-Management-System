@@ -3,6 +3,7 @@ package com.example.ecommerce.integration;
 import com.example.ecommerce.auth.dto.LoginRequest;
 import com.example.ecommerce.auth.dto.RegisterRequest;
 import com.example.ecommerce.auth.service.AuthService;
+import com.example.ecommerce.common.dto.PageResponse;
 import com.example.ecommerce.common.exception.AccountLockedException;
 import com.example.ecommerce.common.exception.BadRequestExeption;
 import com.example.ecommerce.common.exception.DuplicateResourceException;
@@ -382,5 +383,77 @@ class WorkflowIntegrationTest {
 
         Product refundedProduct = productRepository.findById(product1.getId()).orElseThrow();
         assertThat(refundedProduct.getStock()).isEqualTo(10);
+    }
+
+    // -------------------------------------------------------------------------
+    // Order Item Modification -> Ticket Sync
+    // -------------------------------------------------------------------------
+
+    @Test
+    @DisplayName("Sync Ticket: Modifying order items updates ticket status and approval levels")
+    void testOrderModification_SyncsTicketStatusAndLevels() {
+        authenticateAs(customerUser);
+
+        // Tạo 1 sản phẩm giá rẻ (100.000 VNĐ)
+        Product cheapProduct = productRepository.save(Product.builder()
+                .name("Cable")
+                .price(new BigDecimal("100000.00"))
+                .stock(20)
+                .status(ProductStatus.ACTIVE)
+                .owner(poUser)
+                .build());
+
+        // 1. Tạo đơn hàng 1 item: 100k (< 500k) -> Ticket APPROVED, level 0
+        OrderCreationRequest orderReq = OrderCreationRequest.builder()
+                .customerId(customer.getId())
+                .items(List.of(OrderItemRequest.builder()
+                        .productId(cheapProduct.getId()).quantity(1).build()))
+                .build();
+
+        OrderResponse orderRes = orderService.createOrder(orderReq);
+        PurchaseTicket ticket = ticketRepository.findByOrderId(Long.valueOf(orderRes.getId())).orElseThrow();
+        assertThat(ticket.getStatus()).isEqualTo(TicketStatus.APPROVED);
+        assertThat(ticket.getRequiredLevel()).isEqualTo(0);
+
+        // 2. Thêm sản phẩm: 2 Laptop (giá 1M mỗi cái) -> Tổng tiền 2.1M (500k - < 5M)
+        // -> Ticket tự động chuyển sang PENDING_APPROVAL, requiredLevel = 1
+        orderService.addItemToOrder(orderRes.getId(), OrderItemRequest.builder()
+                .productId(product1.getId()).quantity(2).build());
+
+        PurchaseTicket ticketAfterAdd = ticketRepository.findByOrderId(Long.valueOf(orderRes.getId())).orElseThrow();
+        assertThat(ticketAfterAdd.getStatus()).isEqualTo(TicketStatus.PENDING_APPROVAL);
+        assertThat(ticketAfterAdd.getRequiredLevel()).isEqualTo(1);
+        assertThat(ticketAfterAdd.getCurrentLevel()).isEqualTo(1);
+
+        // PO xem hòm thư inbox phải thấy vé này!
+        authenticateAs(poUser);
+        PageResponse<TicketResponse> poInbox = ticketService.getInboxTickets(null, 0, 10);
+        assertThat(poInbox.getContent().stream().anyMatch(t -> t.getId().equals(ticket.getId()))).isTrue();
+
+        // 3. Khách hàng tăng số lượng Laptop lên 6 cái (giá 6M + 100k = 6.1M >= 5M)
+        // -> Ticket tự động chuyển sang PENDING_PO_APPROVE, requiredLevel = 2
+        authenticateAs(customerUser);
+        orderService.updateOrderItemQuantity(orderRes.getId(), product1.getId(),
+                com.example.ecommerce.order.dto.UpdateOrderItemQuantityRequest.builder().quantity(6).build());
+
+        PurchaseTicket ticketAfterIncrease = ticketRepository.findByOrderId(Long.valueOf(orderRes.getId())).orElseThrow();
+        assertThat(ticketAfterIncrease.getStatus()).isEqualTo(TicketStatus.PENDING_PO_APPROVE);
+        assertThat(ticketAfterIncrease.getRequiredLevel()).isEqualTo(2);
+        assertThat(ticketAfterIncrease.getCurrentLevel()).isEqualTo(1);
+
+        // PO vẫn thấy trong inbox ở cấp 1!
+        authenticateAs(poUser);
+        PageResponse<TicketResponse> poInboxLevel2 = ticketService.getInboxTickets(null, 0, 10);
+        assertThat(poInboxLevel2.getContent().stream().anyMatch(t -> t.getId().equals(ticket.getId()))).isTrue();
+
+        // 4. Khách hàng xóa bớt Laptop, chỉ giữ lại Cable (100k < 500k)
+        // -> Ticket tự động chuyển về APPROVED, requiredLevel = 0
+        authenticateAs(customerUser);
+        orderService.deleteOrderItem(orderRes.getId(), product1.getId());
+
+        PurchaseTicket ticketAfterDelete = ticketRepository.findByOrderId(Long.valueOf(orderRes.getId())).orElseThrow();
+        assertThat(ticketAfterDelete.getStatus()).isEqualTo(TicketStatus.APPROVED);
+        assertThat(ticketAfterDelete.getRequiredLevel()).isEqualTo(0);
+        assertThat(ticketAfterDelete.getCurrentLevel()).isEqualTo(0);
     }
 }
