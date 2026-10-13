@@ -100,10 +100,19 @@ public class AdminUserService {
     }
 
     private UserResponse mapToUserResponse(AppUser user) {
-        Long customerId = user.getCustomer() != null ? Long.valueOf(user.getCustomer().getId()) : null;
+        Long customerId = null;
+        String name = null;
+        String phone = null;
+        if (user.getCustomer() != null) {
+            customerId = Long.valueOf(user.getCustomer().getId());
+            name = user.getCustomer().getName();
+            phone = user.getCustomer().getPhone();
+        }
         return UserResponse.builder()
                 .id(user.getId())
                 .email(user.getEmail())
+                .name(name)
+                .phone(phone)
                 .role(user.getRole())
                 .status(user.getStatus())
                 .customerId(customerId)
@@ -111,3 +120,4 @@ public class AdminUserService {
                 .build();
     }
 }
+

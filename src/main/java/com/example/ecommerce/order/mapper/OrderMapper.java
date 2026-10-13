@@ -18,6 +18,7 @@ public interface OrderMapper {
 
     @Mapping(target = "productId", source = "product.id")
     @Mapping(target = "productName", source = "product.name")
+    @Mapping(target = "imageUrl", source = "product.imageUrl")
     OrderItemResponse toItemResponse(OrderItem orderItem);
 
     List<OrderItemResponse> toItemResponseList(List<OrderItem> orderItems);

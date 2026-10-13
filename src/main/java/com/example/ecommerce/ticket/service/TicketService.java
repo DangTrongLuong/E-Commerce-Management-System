@@ -109,6 +109,16 @@ public class TicketService {
     }
 
     @Transactional(readOnly = true)
+    public TicketResponse getTicketByOrderId(Long orderId) {
+        PurchaseTicket ticket = ticketRepository.findByOrderId(orderId).orElse(null);
+        if (ticket == null) {
+            return null;
+        }
+        verifyTicketVisibility(ticket);
+        return mapToResponse(ticket);
+    }
+
+    @Transactional(readOnly = true)
     public List<TicketHistoryResponse> getTicketHistory(Long id) {
         PurchaseTicket ticket = findTicketOrThrow(id);
         verifyTicketVisibility(ticket);

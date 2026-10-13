@@ -60,6 +60,9 @@ databaseChangeLog:
   - include:
       file: changes/023-create-email-outbox-table.yaml
       relativeToChangelogFile: true
+  - include:
+      file: changes/024-create-cart-and-cart-items-table.yaml
+      relativeToChangelogFile: true
 #   - include:
 #       file: changes/900-seed-dev-users.yaml
 #       relativeToChangelogFile: true

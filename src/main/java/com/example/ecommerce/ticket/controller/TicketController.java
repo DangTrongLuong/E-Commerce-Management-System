@@ -55,6 +55,14 @@ public class TicketController {
         return ResponseEntity.ok(ApiResponse.success("Lấy thông tin chi tiết vé thành công", ticketService.getTicketById(id)));
     }
 
+    @GetMapping("/order/{orderId}")
+    @PreAuthorize("isAuthenticated()")
+    @Operation(summary = "Get ticket details by Order ID")
+    public ResponseEntity<ApiResponse<TicketResponse>> getTicketByOrderId(@PathVariable("orderId") Long orderId) {
+        TicketResponse res = ticketService.getTicketByOrderId(orderId);
+        return ResponseEntity.ok(ApiResponse.success("Lấy thông tin vé theo đơn hàng thành công", res));
+    }
+
     @GetMapping("/{id}/history")
     @PreAuthorize("isAuthenticated()")
     @Operation(summary = "Get ticket audit history")

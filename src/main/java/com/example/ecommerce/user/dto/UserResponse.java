@@ -17,8 +17,11 @@ public class UserResponse {
 
     private Long id;
     private String email;
+    private String name;
+    private String phone;
     private Role role;
     private UserStatus status;
     private Long customerId;
     private LocalDateTime createdAt;
 }
+

@@ -94,6 +94,22 @@ public class ProductController {
         );
     }
 
+    @GetMapping("/mine")
+    @PreAuthorize("hasRole('PRODUCT_OWNER')")
+    @Operation(summary = "Get only the authenticated product owner's products")
+    public ResponseEntity<ApiResponse<PageResponse<ProductResponse>>> getMyProducts(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size,
+            @RequestParam(required = false) String keyword,
+            @RequestParam(required = false) ProductStatus status,
+            @RequestParam(required = false) String sort
+    ) {
+        return ResponseEntity.ok(ApiResponse.success(
+                "Lấy danh sách sản phẩm của bạn thành công",
+                productService.getMyProducts(keyword, status, page, size, sort)
+        ));
+    }
+
     @GetMapping("/{id}")
     @PreAuthorize("permitAll()")
     @Operation(summary = "Get product details by ID (Public / User / PO / Admin)")

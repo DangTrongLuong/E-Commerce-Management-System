@@ -27,8 +27,11 @@ public class JwtAccessDeniedHandler implements AccessDeniedHandler {
 
         Map<String, Object> body = new LinkedHashMap<>();
         body.put("success", false);
-        body.put("code", 403);
-        body.put("message", "Bạn không có quyền truy cập tài nguyên này!");
+        boolean cartRequest = request.getRequestURI().startsWith("/api/cart");
+        body.put("code", cartRequest ? "CART_USER_ROLE_REQUIRED" : 403);
+        body.put("message", cartRequest
+                ? "Chỉ tài khoản khách hàng (USER) mới được sử dụng giỏ hàng."
+                : "Bạn không có quyền truy cập tài nguyên này!");
         body.put("timestamp", LocalDateTime.now().toString());
 
         objectMapper.writeValue(response.getOutputStream(), body);

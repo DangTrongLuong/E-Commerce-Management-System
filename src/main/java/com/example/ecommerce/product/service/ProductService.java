@@ -40,7 +40,7 @@ public class ProductService {
     SecurityUtils securityUtils;
     CloudinaryService cloudinaryService;
 
-    @CacheEvict(value = "products", allEntries = true)
+    @CacheEvict(value = {"products", "products-list"}, allEntries = true)
     @Transactional(rollbackFor = Exception.class)
     public ProductResponse createProduct(ProductCreationRequest productCreationRequest) {
         boolean nameExists = productRepository
@@ -109,6 +109,40 @@ public class ProductService {
         return PageResponse.of(productResponsePage);
     }
 
+    @Transactional(readOnly = true)
+    public PageResponse<ProductResponse> getMyProducts(
+            String keyword,
+            ProductStatus status,
+            int page,
+            int size,
+            String sort) {
+
+        AppUser currentUser = securityUtils.getCurrentUser();
+        if (currentUser.getRole() != Role.PRODUCT_OWNER) {
+            throw new AccessDeniedException(
+                    "Chỉ tài khoản PRODUCT_OWNER mới được xem danh sách sản phẩm của mình");
+        }
+
+        int cappedSize = Math.min(Math.max(size, 1), 100);
+        Pageable pageable = PageRequest.of(page, cappedSize, SortUtils.buildSort(sort, "id"));
+        Specification<Product> specification = (root, query, cb) ->
+                cb.equal(root.get("owner").get("id"), currentUser.getId());
+
+        if (keyword != null && !keyword.isBlank()) {
+            specification = specification.and((root, query, cb) -> cb.like(
+                    cb.lower(root.get("name")),
+                    "%" + keyword.toLowerCase() + "%"));
+        }
+
+        if (status != null) {
+            specification = specification.and((root, query, cb) ->
+                    cb.equal(root.get("status"), status));
+        }
+
+        Page<Product> productPage = productRepository.findAll(specification, pageable);
+        return PageResponse.of(productPage.map(productMapper::toResponse));
+    }
+
     @Cacheable(value = "products", key = "#id")
     public ProductResponse getProductById(int id) {
         Product product = productRepository.findById(id)
@@ -117,7 +151,7 @@ public class ProductService {
         return productMapper.toResponse(product);
     }
 
-    @CacheEvict(value = "products", key = "#id")
+    @CacheEvict(value = {"products", "products-list"}, allEntries = true)
     @Transactional(rollbackFor = Exception.class)
     public ProductResponse updateProduct(int id, ProductUpdateRequest productUpdateRequest) {
         Product product = productRepository.findById(id)
@@ -129,7 +163,7 @@ public class ProductService {
         return productMapper.toResponse(productRepository.save(product));
     }
 
-    @CacheEvict(value = "products", key = "#id")
+    @CacheEvict(value = {"products", "products-list"}, allEntries = true)
     @Transactional(rollbackFor = Exception.class)
     public void deleteProduct(int id) {
         Product product = productRepository.findById(id)
