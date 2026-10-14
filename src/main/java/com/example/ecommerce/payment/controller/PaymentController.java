@@ -25,12 +25,15 @@ import java.util.Map;
 @RequiredArgsConstructor
 @RequestMapping("/api/payments/vnpay")
 @FieldDefaults(makeFinal = true,level = AccessLevel.PRIVATE)
-@Tag(name = "Payment", description = "VNPay payment endpoints")
+@Tag(name = "Thanh Toán VNPay (Payments)", description = "Xử lý kết quả giao dịch và tra cứu lịch sử thanh toán qua cổng VNPay (Quyền: Công khai, USER, PRODUCT_OWNER, ADMIN)")
 public class PaymentController {
     VnPayService vnPayService;
 
     @GetMapping("/return")
-    @Operation(summary = "Trình xử lý phản hồi VNPay (display only, public)")
+    @Operation(
+            summary = "Xử lý kết quả điều hướng giao dịch VNPay (Return URL)",
+            description = "Điểm tiếp nhận phản hồi từ cổng VNPay sau khi khách hàng hoàn tất giao dịch. Xác thực chữ ký số Secure Hash và trả về trạng thái giao dịch cho giao diện Frontend. Quyền truy cập: Công khai."
+    )
     public ResponseEntity<ApiResponse<VnPayReturnResult>> vnPayReturn(HttpServletRequest request) {
         Map<String, String> params = VnPayUtils
                 .toSingleValueMap(request.getParameterMap());
@@ -40,10 +43,12 @@ public class PaymentController {
 
     @GetMapping("/history/{orderId}")
     @PreAuthorize("hasAnyRole('USER', 'PRODUCT_OWNER', 'ADMIN')")
-    @Operation(summary = "Lấy lịch sử các lần thử thanh toán của một đơn hàng (User/PO/Admin)")
+    @Operation(
+            summary = "Tra cứu lịch sử các lần thanh toán của đơn hàng",
+            description = "Truy vấn toàn bộ các lượt thử thanh toán (mã giao dịch, ngân hàng, số tiền, trạng thái thành công/thất bại) gắn liền với orderId. Quyền truy cập: USER (chủ đơn), PRODUCT_OWNER, ADMIN."
+    )
     public ResponseEntity<ApiResponse<List<PaymentResponse>>> getHistory(@PathVariable Integer orderId) {
         List<PaymentResponse> history = vnPayService.getPaymentHistory(orderId);
         return ResponseEntity.ok(ApiResponse.success("Lấy lịch sử thanh toán thành công", history));
     }
-
 }

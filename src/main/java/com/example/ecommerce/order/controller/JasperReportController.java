@@ -22,7 +22,7 @@ import org.springframework.web.bind.annotation.RestController;
 @RequiredArgsConstructor
 @RequestMapping("/api/jasper")
 @FieldDefaults(makeFinal = true, level = AccessLevel.PRIVATE)
-@Tag(name = "JasperReport", description = "Endpoints for JasperReports PDF export")
+@Tag(name = "Hóa Đơn JasperReports (Invoices)", description = "Xuất hóa đơn bán hàng định dạng PDF qua JasperReports (Quyền: Đã đăng nhập - USER, PRODUCT_OWNER, ADMIN)")
 public class JasperReportController {
 
     JasperReportService jasperReportService;
@@ -30,7 +30,10 @@ public class JasperReportController {
 
     @GetMapping(value = "/orders/{id}/pdf", produces = MediaType.APPLICATION_PDF_VALUE)
     @PreAuthorize("isAuthenticated()")
-    @Operation(summary = "Export basic invoice PDF using JasperReports engine")
+    @Operation(
+            summary = "Xuất hóa đơn bán hàng dạng PDF qua JasperReports",
+            description = "Biên dịch mẫu hóa đơn và xuất file PDF chứa đầy đủ danh mục sản phẩm, đơn giá, số lượng và tổng thanh toán của đơn hàng theo orderId. Quyền truy cập: USER (chủ đơn), PRODUCT_OWNER, ADMIN."
+    )
     public ResponseEntity<byte[]> exportJasperInvoicePdf(@PathVariable Integer id) {
         orderService.getOrderById(id); // Check access authority
         byte[] pdfBytes = jasperReportService.generateJasperInvoicePdf(id);

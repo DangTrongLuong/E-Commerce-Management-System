@@ -37,7 +37,7 @@ import jakarta.servlet.http.HttpServletRequest;
 @RequiredArgsConstructor
 @RequestMapping("/api/orders")
 @FieldDefaults(makeFinal = true, level = AccessLevel.PRIVATE)
-@Tag(name = "Order", description = "Order processing endpoints")
+@Tag(name = "Đơn Hàng (Orders)", description = "Quản lý quy trình đặt hàng, checkout, cập nhật trạng thái và hoàn tiền (Quyền: USER, PRODUCT_OWNER, ADMIN)")
 public class OrderController {
 
     OrderService orderService;
@@ -50,7 +50,10 @@ public class OrderController {
     // Tạo mới đơn hàng (hỗ trợ tự động tách đơn theo PO)
     @PostMapping
     @PreAuthorize("hasRole('USER')")
-    @Operation(summary = "Create a new order (Supports Multi-PO Auto Split) (USER)")
+    @Operation(
+            summary = "Tạo mới đơn hàng (Tự động tách đơn theo PO)",
+            description = "Tạo đơn hàng mới từ danh sách mặt hàng đã chọn. Hệ thống tự động phân loại và tách thành các đơn hàng độc lập theo từng Product Owner (PO), kiểm tra và giữ trước số lượng tồn kho khả dụng. Quyền truy cập: USER."
+    )
     public ResponseEntity<ApiResponse<List<OrderResponse>>> createOrder(
             @Valid @RequestBody OrderCreationRequest request) {
         List<OrderResponse> orderResponses = orderService.createOrders(request);
@@ -63,7 +66,10 @@ public class OrderController {
     // Checkout đơn hàng (REQ-02 - Idempotent Checkout)
     @PostMapping("/{id}/checkout")
     @PreAuthorize("isAuthenticated()")
-    @Operation(summary = "Checkout đơn hàng (REQ-02 - Idempotent Checkout)")
+    @Operation(
+            summary = "Thanh toán đơn hàng (Hỗ trợ Idempotent & VNPay/COD)",
+            description = "Thực hiện thanh toán đơn hàng đang ở trạng thái PENDING. Hỗ trợ header 'Idempotency-Key' để chống trừ tiền/tạo giao dịch lặp lại. Nếu chọn VNPay sẽ tạo URL chuyển hướng tới cổng thanh toán VNPay. Quyền truy cập: USER (chủ đơn) hoặc ADMIN."
+    )
     public ResponseEntity<ApiResponse<OrderCheckoutResponse>> checkoutOrder(
             @PathVariable Integer id,
             @RequestHeader(value = "Idempotency-Key", required = false) String idempotencyKey,
@@ -80,7 +86,10 @@ public class OrderController {
     // Thêm sản phẩm vào đơn hàng PENDING và gộp số lượng
     @PostMapping("/{orderId}/items")
     @PreAuthorize("hasRole('USER')")
-    @Operation(summary = "Thêm sản phẩm vào đơn hàng PENDING và gộp số lượng (USER)")
+    @Operation(
+            summary = "Thêm sản phẩm vào đơn hàng PENDING",
+            description = "Thêm một sản phẩm vào đơn hàng đang chờ thanh toán (PENDING). Nếu sản phẩm đã có trong đơn thì tự động gộp số lượng và giữ thêm tồn kho tương ứng. Quyền truy cập: USER."
+    )
     public ResponseEntity<ApiResponse<OrderResponse>> addItemToOrder(
             @PathVariable Integer orderId,
             @Valid @RequestBody OrderItemRequest request) {
@@ -93,7 +102,10 @@ public class OrderController {
     // Cập nhật số lượng sản phẩm trong đơn hàng PENDING
     @PatchMapping("/{orderId}/items/{productId}")
     @PreAuthorize("hasRole('USER')")
-    @Operation(summary = "Cập nhật số lượng sản phẩm trong đơn hàng PENDING (USER)")
+    @Operation(
+            summary = "Cập nhật số lượng mặt hàng trong đơn PENDING",
+            description = "Điều chỉnh số lượng của một sản phẩm trong đơn PENDING. Tự động kiểm tra tồn kho tăng/giảm, hoàn lại phần dư thừa vào kho và tính toán lại tổng tiền đơn hàng. Quyền truy cập: USER."
+    )
     public ResponseEntity<ApiResponse<OrderResponse>> updateOrderItemQuantity(
             @PathVariable Integer orderId,
             @PathVariable Integer productId,
@@ -105,7 +117,10 @@ public class OrderController {
     // Xóa một sản phẩm khỏi đơn hàng PENDING và hoàn lại tồn kho
     @DeleteMapping("/{orderId}/items/{productId}")
     @PreAuthorize("hasRole('USER')")
-    @Operation(summary = "Xóa sản phẩm khỏi đơn hàng PENDING và hoàn lại tồn kho (USER)")
+    @Operation(
+            summary = "Xóa sản phẩm khỏi đơn hàng PENDING",
+            description = "Gỡ bỏ một sản phẩm khỏi đơn PENDING, hoàn trả lại toàn bộ số lượng tồn kho đã giữ của mặt hàng đó và cập nhật lại tổng tiền. Quyền truy cập: USER."
+    )
     public ResponseEntity<ApiResponse<OrderResponse>> deleteOrderItem(
             @PathVariable Integer orderId,
             @PathVariable Integer productId) {
@@ -116,7 +131,10 @@ public class OrderController {
     // Xóa toàn bộ đơn hàng PENDING và hoàn lại tồn kho cho tất cả sản phẩm
     @DeleteMapping("/{orderId}")
     @PreAuthorize("hasRole('USER')")
-    @Operation(summary = "Xóa toàn bộ đơn hàng PENDING và hoàn lại tồn kho cho tất cả sản phẩm (USER)")
+    @Operation(
+            summary = "Hủy và xóa toàn bộ đơn hàng PENDING",
+            description = "Hủy bỏ đơn hàng PENDING, giải phóng và hoàn trả lại kho toàn bộ số lượng tồn kho của tất cả sản phẩm trong đơn. Quyền truy cập: USER."
+    )
     public ResponseEntity<ApiResponse<Void>> deleteOrder(@PathVariable Integer orderId) {
         orderService.deleteOrder(orderId);
         return ResponseEntity.ok(ApiResponse.success("Đã xóa đơn hàng và hoàn tồn kho thành công", null));
@@ -129,7 +147,10 @@ public class OrderController {
     // Lấy chi tiết đơn hàng theo ID
     @GetMapping("/{id}")
     @PreAuthorize("isAuthenticated()")
-    @Operation(summary = "Get order details by ID (User / PO / Admin)")
+    @Operation(
+            summary = "Lấy thông tin chi tiết đơn hàng theo ID",
+            description = "Xem chi tiết một đơn hàng gồm danh sách mặt hàng, đơn giá, địa chỉ giao hàng, thông tin thanh toán và trạng thái hiện tại. Quyền truy cập: USER (chủ đơn), PRODUCT_OWNER (đơn thuộc quyền), ADMIN."
+    )
     public ResponseEntity<ApiResponse<OrderResponse>> getOrderById(@PathVariable Integer id) {
         OrderResponse orderResponse = orderService.getOrderById(id);
         return ResponseEntity.ok(ApiResponse.success("Lấy thông tin chi tiết đơn hàng thành công", orderResponse));
@@ -138,7 +159,10 @@ public class OrderController {
     // Xuất / Tải xuống hóa đơn PDF cho đơn hàng đã phê duyệt
     @GetMapping(value = "/{id}/pdf", produces = org.springframework.http.MediaType.APPLICATION_PDF_VALUE)
     @PreAuthorize("isAuthenticated()")
-    @Operation(summary = "Export / Download PDF Invoice for approved order (CONFIRMED / PROCESSING / COMPLETED)")
+    @Operation(
+            summary = "Tải hóa đơn điện tử PDF của đơn hàng",
+            description = "Tạo và tải về hóa đơn bán hàng định dạng PDF cho đơn hàng đã được xác nhận hoặc hoàn tất (CONFIRMED, PROCESSING, COMPLETED). Quyền truy cập: USER (chủ đơn), PRODUCT_OWNER, ADMIN."
+    )
     public ResponseEntity<byte[]> downloadInvoicePdf(@PathVariable Integer id) {
         orderService.getOrderById(id);
         byte[] pdfBytes = pdfInvoiceService.generateInvoicePdf(id);
@@ -152,7 +176,10 @@ public class OrderController {
     // Lấy danh sách đơn hàng (User / PO / Admin)
     @GetMapping
     @PreAuthorize("isAuthenticated()")
-    @Operation(summary = "Get list of orders (User / PO / Admin)")
+    @Operation(
+            summary = "Lấy danh sách đơn hàng có phân trang và bộ lọc",
+            description = "Truy vấn danh sách đơn hàng theo trạng thái (status), hỗ trợ phân trang và sắp xếp. Dữ liệu tự động lọc theo quyền: USER chỉ thấy đơn của mình, PO chỉ thấy đơn thuộc sản phẩm của mình, ADMIN thấy toàn bộ. Quyền truy cập: Đã đăng nhập."
+    )
     public ResponseEntity<ApiResponse<PageResponse<OrderResponse>>> getAllOrders(
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size,
@@ -165,7 +192,10 @@ public class OrderController {
     // Lấy danh sách đơn hàng theo ID khách hàng
     @GetMapping("/customer/{customerId}")
     @PreAuthorize("isAuthenticated()")
-    @Operation(summary = "Get customer's orders")
+    @Operation(
+            summary = "Lấy danh sách đơn hàng theo mã khách hàng",
+            description = "Truy vấn danh sách đơn hàng của một khách hàng cụ thể theo customerId kèm phân trang và lọc theo trạng thái. Quyền truy cập: USER (chính chủ) hoặc ADMIN."
+    )
     public ResponseEntity<ApiResponse<PageResponse<OrderResponse>>> getOrdersByCustomer(
             @PathVariable Integer customerId,
             @RequestParam(defaultValue = "0") int page,
@@ -183,7 +213,10 @@ public class OrderController {
     // Cập nhật trạng thái đơn hàng (CONFIRMED -> COMPLETED cho PO / Admin)
     @PatchMapping("/{id}/status")
     @PreAuthorize("hasAnyRole('PRODUCT_OWNER', 'ADMIN')")
-    @Operation(summary = "Update order status (PO / Admin - CONFIRMED to COMPLETED only)")
+    @Operation(
+            summary = "Cập nhật trạng thái xử lý đơn hàng",
+            description = "Chuyển tiến trình xử lý đơn hàng (ví dụ: chuyển sang PROCESSING, SHIPPING hoặc COMPLETED) và tự động ghi log lịch sử trạng thái. Quyền truy cập: PRODUCT_OWNER, ADMIN."
+    )
     public ResponseEntity<ApiResponse<OrderResponse>> updateOrderStatus(
             @PathVariable Integer id,
             @Valid @RequestBody OrderStatusUpdateRequest request) {
@@ -195,7 +228,10 @@ public class OrderController {
     // Yêu cầu hoàn tiền đơn hàng
     @PostMapping("/{id}/refund-request")
     @PreAuthorize("hasAnyRole('USER', 'ADMIN')")
-    @Operation(summary = "Request order refund (USER / ADMIN)")
+    @Operation(
+            summary = "Gửi yêu cầu hoàn tiền cho đơn hàng",
+            description = "Khách hàng gửi yêu cầu hoàn tiền cho đơn hàng kèm theo lý do cụ thể. Đơn hàng chuyển sang trạng thái chờ duyệt hoàn tiền (REFUND_PENDING). Quyền truy cập: USER, ADMIN."
+    )
     public ResponseEntity<ApiResponse<OrderResponse>> requestRefund(
             @PathVariable Integer id,
             @Valid @RequestBody OrderRefundRequest request) {
@@ -206,7 +242,10 @@ public class OrderController {
     // Duyệt yêu cầu hoàn tiền (PO / Admin)
     @PostMapping("/{id}/refund-approve")
     @PreAuthorize("hasAnyRole('PRODUCT_OWNER', 'ADMIN')")
-    @Operation(summary = "Approve order refund (PO / ADMIN)")
+    @Operation(
+            summary = "Phê duyệt yêu cầu hoàn tiền đơn hàng",
+            description = "Chấp thuận yêu cầu hoàn tiền, hoàn trả lại số lượng tồn kho vào hệ thống và chuyển trạng thái đơn hàng thành REFUNDED. Quyền truy cập: PRODUCT_OWNER, ADMIN."
+    )
     public ResponseEntity<ApiResponse<OrderResponse>> approveRefund(
             @PathVariable Integer id,
             @RequestBody(required = false) OrderRefundActionRequest request) {
@@ -217,7 +256,10 @@ public class OrderController {
     // Từ chối yêu cầu hoàn tiền (PO / Admin)
     @PostMapping("/{id}/refund-reject")
     @PreAuthorize("hasAnyRole('PRODUCT_OWNER', 'ADMIN')")
-    @Operation(summary = "Reject order refund (PO / ADMIN)")
+    @Operation(
+            summary = "Từ chối yêu cầu hoàn tiền đơn hàng",
+            description = "Từ chối yêu cầu hoàn tiền của khách hàng kèm theo lý do giải thích. Khôi phục lại trạng thái hợp lệ trước đó của đơn hàng. Quyền truy cập: PRODUCT_OWNER, ADMIN."
+    )
     public ResponseEntity<ApiResponse<OrderResponse>> rejectRefund(
             @PathVariable Integer id,
             @RequestBody(required = false) OrderRefundActionRequest request) {
@@ -228,7 +270,10 @@ public class OrderController {
     // Lấy lịch sử chuyển trạng thái của đơn hàng (User / PO / Admin)
     @GetMapping("/{id}/history")
     @PreAuthorize("isAuthenticated()")
-    @Operation(summary = "Lấy lịch sử chuyển trạng thái của đơn hàng (User / PO / Admin)")
+    @Operation(
+            summary = "Lấy lịch sử thay đổi trạng thái của đơn hàng",
+            description = "Truy xuất danh sách mốc thời gian, người thực hiện và trạng thái thay đổi trong suốt vòng đời của đơn hàng. Quyền truy cập: USER (chủ đơn), PRODUCT_OWNER, ADMIN."
+    )
     public ResponseEntity<ApiResponse<List<OrderStatusHistoryResponse>>> getOrderHistory(
             @PathVariable Integer id) {
         List<OrderStatusHistoryResponse> history = orderService.getOrderHistory(id);

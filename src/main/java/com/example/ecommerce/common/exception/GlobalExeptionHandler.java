@@ -19,6 +19,7 @@ import org.springframework.web.multipart.MaxUploadSizeExceededException;
 import org.springframework.web.multipart.MultipartException;
 
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -45,22 +46,27 @@ public class GlobalExeptionHandler {
     @ExceptionHandler(MaxUploadSizeExceededException.class)
     public ResponseEntity<ApiResponse<Object>> handleMaxUploadSizeExceeded(MaxUploadSizeExceededException ex) {
         log.warn("Upload file size limit exceeded: {}", ex.getMessage());
-        return build(HttpStatus.BAD_REQUEST, "PAYLOAD_TOO_LARGE", "Dung lượng file vượt quá giới hạn cho phép (tối đa 5MB)");
+        return build(HttpStatus.BAD_REQUEST, "PAYLOAD_TOO_LARGE",
+                "Dung lượng file vượt quá giới hạn cho phép (tối đa 5MB)");
     }
 
     @ExceptionHandler(MissingServletRequestParameterException.class)
-    public ResponseEntity<ApiResponse<Object>> handleMissingServletRequestParameter(MissingServletRequestParameterException ex) {
+    public ResponseEntity<ApiResponse<Object>> handleMissingServletRequestParameter(
+            MissingServletRequestParameterException ex) {
         log.warn("Missing request parameter: {}", ex.getParameterName());
         if ("file".equalsIgnoreCase(ex.getParameterName())) {
-            return build(HttpStatus.BAD_REQUEST, "MISSING_FILE_PARAMETER", "Vui lòng chọn file hợp lệ để tải lên (thiếu tham số 'file')");
+            return build(HttpStatus.BAD_REQUEST, "MISSING_FILE_PARAMETER",
+                    "Vui lòng chọn file hợp lệ để tải lên (thiếu tham số 'file')");
         }
-        return build(HttpStatus.BAD_REQUEST, "MISSING_PARAMETER", "Thiếu tham số bắt buộc trong yêu cầu: " + ex.getParameterName());
+        return build(HttpStatus.BAD_REQUEST, "MISSING_PARAMETER",
+                "Thiếu tham số bắt buộc trong yêu cầu: " + ex.getParameterName());
     }
 
     @ExceptionHandler(MultipartException.class)
     public ResponseEntity<ApiResponse<Object>> handleMultipartException(MultipartException ex) {
         log.warn("Multipart upload error: {}", ex.getMessage());
-        return build(HttpStatus.BAD_REQUEST, "MULTIPART_ERROR", "Lỗi định dạng upload file: Vui lòng đảm bảo gửi dạng multipart/form-data và file không bị hỏng");
+        return build(HttpStatus.BAD_REQUEST, "MULTIPART_ERROR",
+                "Lỗi định dạng upload file: Vui lòng đảm bảo gửi dạng multipart/form-data và file không bị hỏng");
     }
 
     @ExceptionHandler(BadRequestException.class)
@@ -125,7 +131,8 @@ public class GlobalExeptionHandler {
     // 403 FORBIDDEN
     @ExceptionHandler(AccessDeniedException.class)
     public ResponseEntity<ApiResponse<Object>> handleAccessDenied(AccessDeniedException ex) {
-        String message = (ex.getMessage() != null && !ex.getMessage().isBlank()) ? ex.getMessage() : "Bạn không có quyền thực hiện thao tác này";
+        String message = (ex.getMessage() != null && !ex.getMessage().isBlank()) ? ex.getMessage()
+                : "Bạn không có quyền thực hiện thao tác này";
         return build(HttpStatus.FORBIDDEN, "FORBIDDEN", message);
     }
 
@@ -231,11 +238,23 @@ public class GlobalExeptionHandler {
         return build(HttpStatus.CONFLICT, "ORDER_NOT_EDITABLE", ex.getMessage());
     }
 
+    @ExceptionHandler(InvalidReportParamsException.class)
+    public ResponseEntity<Map<String, Object>> handleInvalidReportParams(InvalidReportParamsException ex) {
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("code", "INVALID_REPORT_PARAMS");
+        body.put("message", ex.getMessage());
+        body.put("timestamp", java.time.ZonedDateTime.now(java.time.ZoneId.of("Asia/Ho_Chi_Minh"))
+                .format(java.time.format.DateTimeFormatter.ISO_OFFSET_DATE_TIME));
+        body.put("errors", ex.getErrors());
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(body);
+    }
+
     // 500 INTERNAL ERROR
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ApiResponse<Object>> handleGenericException(Exception ex) {
         log.error("Unhandled server error: ", ex);
-        return build(HttpStatus.INTERNAL_SERVER_ERROR, "INTERNAL_ERROR", "Đã xảy ra lỗi hệ thống không xác định. Vui lòng thử lại sau.");
+        return build(HttpStatus.INTERNAL_SERVER_ERROR, "INTERNAL_ERROR",
+                "Đã xảy ra lỗi hệ thống không xác định. Vui lòng thử lại sau.");
     }
 
     private ResponseEntity<ApiResponse<Object>> build(HttpStatus status, String code, String message) {

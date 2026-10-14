@@ -1,0 +1,143 @@
+databaseChangeLog:
+  - changeSet:
+      id: 025-create-report-paramset-and-seed
+      author: oms
+      failOnError: true
+      changes:
+        # 1. Tạo bảng REPORT_DEFINITION
+        - createTable:
+            tableName: report_definition
+            columns:
+              - column:
+                  name: code
+                  type: VARCHAR(50)
+                  constraints:
+                    primaryKey: true
+                    primaryKeyName: pk_report_definition
+                    nullable: false
+              - column:
+                  name: name
+                  type: VARCHAR(255)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: description
+                  type: VARCHAR(500)
+              - column:
+                  name: template_path
+                  type: VARCHAR(255)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: created_at
+                  type: TIMESTAMP
+                  defaultValueComputed: CURRENT_TIMESTAMP
+
+        # 2. Tạo bảng REPORT_PARAM
+        - createTable:
+            tableName: report_param
+            columns:
+              - column:
+                  name: id
+                  type: BIGINT
+                  autoIncrement: true
+                  constraints:
+                    primaryKey: true
+                    primaryKeyName: pk_report_param
+                    nullable: false
+              - column:
+                  name: report_code
+                  type: VARCHAR(50)
+                  constraints:
+                    nullable: false
+                    foreignKeyName: fk_report_param_definition
+                    references: report_definition(code)
+              - column:
+                  name: name
+                  type: VARCHAR(50)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: data_type
+                  type: VARCHAR(20)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: required
+                  type: BOOLEAN
+                  defaultValueBoolean: false
+                  constraints:
+                    nullable: false
+              - column:
+                  name: description
+                  type: VARCHAR(255)
+              - column:
+                  name: param_order
+                  type: INT
+                  defaultValueNumeric: 0
+
+        # Ràng buộc unique (report_code, name)
+        - addUniqueConstraint:
+            tableName: report_param
+            columnNames: report_code, name
+            constraintName: uk_report_param_code_name
+
+        # 3. Seed định nghĩa ParamSet cho RPT_REVENUE_DAILY
+        - insert:
+            tableName: report_definition
+            columns:
+              - column: { name: code, value: "RPT_REVENUE_DAILY" }
+              - column: { name: name, value: "Báo cáo doanh thu theo ngày" }
+              - column: { name: description, value: "Báo cáo doanh thu bán hàng theo ngày xuất PDF hoặc XLSX" }
+              - column: { name: template_path, value: "jasper/RPT_REVENUE_DAILY.jrxml" }
+
+        - insert:
+            tableName: report_param
+            columns:
+              - column: { name: report_code, value: "RPT_REVENUE_DAILY" }
+              - column: { name: name, value: "fromDate" }
+              - column: { name: data_type, value: "DATE" }
+              - column: { name: required, valueBoolean: true }
+              - column: { name: description, value: "Định dạng yyyy-MM-dd" }
+              - column: { name: param_order, valueNumeric: 1 }
+
+        - insert:
+            tableName: report_param
+            columns:
+              - column: { name: report_code, value: "RPT_REVENUE_DAILY" }
+              - column: { name: name, value: "toDate" }
+              - column: { name: data_type, value: "DATE" }
+              - column: { name: required, valueBoolean: true }
+              - column: { name: description, value: "Định dạng yyyy-MM-dd; toDate >= fromDate; khoảng <= 92 ngày" }
+              - column: { name: param_order, valueNumeric: 2 }
+
+        - insert:
+            tableName: report_param
+            columns:
+              - column: { name: report_code, value: "RPT_REVENUE_DAILY" }
+              - column: { name: name, value: "customerId" }
+              - column: { name: data_type, value: "LONG" }
+              - column: { name: required, valueBoolean: false }
+              - column: { name: description, value: "Customer phải tồn tại" }
+              - column: { name: param_order, valueNumeric: 3 }
+
+        # 4. Seed dữ liệu đơn hàng phục vụ kiểm thử REQ-04 (Orders 201 -> 205)
+        # Lưu ý: 2026-10-02 06:30 UTC+7 tương đương 2026-10-01 23:30 UTC
+        - sql:
+            comment: Seed test orders for REQ-04
+            sql: |
+              -- Đảm bảo có customer 1 và 2
+              INSERT IGNORE INTO customers (id, name, email, phone, status, created_at, updated_at) VALUES 
+              (1, 'Nguyễn Văn An', 'an.nguyen@example.com', '0901234567', 'ACTIVE', NOW(), NOW()),
+              (2, 'Trần Thị Bình', 'binh.tran@example.com', '0912345678', 'ACTIVE', NOW(), NOW());
+
+              -- Xóa dữ liệu cũ nếu trùng ID test
+              DELETE FROM orders WHERE id IN (201, 202, 203, 204, 205);
+
+              -- Chèn 5 đơn hàng seed
+              INSERT INTO orders (id, customer_id, total_amount, status, paid_at, created_at, updated_at) VALUES
+              (201, 1, 45980000.00, 'COMPLETED', '2026-10-01 03:00:00', '2026-10-01 02:00:00', NOW()),
+              (202, 2, 190000.00,   'COMPLETED', '2026-10-01 23:30:00', '2026-10-01 23:00:00', NOW()),
+              (203, 1, 22990000.00, 'CONFIRMED', '2026-10-03 01:15:00', '2026-10-03 01:00:00', NOW()),
+              (204, 2, 5990000.00,  'CANCELLED', '2026-10-03 02:00:00', '2026-10-03 01:30:00', NOW()),
+              (205, 2, 380000.00,   'AWAITING_PAYMENT', NULL,            '2026-10-03 03:00:00', NOW());

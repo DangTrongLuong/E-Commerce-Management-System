@@ -27,7 +27,7 @@ import org.springframework.web.bind.annotation.*;
 @RestController
 @RequestMapping("/api/customers")
 @RequiredArgsConstructor
-@Tag(name = "Customer", description = "Customer catalog endpoints")
+@Tag(name = "Khách Hàng (Customers)", description = "Quản lý thông tin hồ sơ khách hàng và địa chỉ liên lạc (Quyền: USER, ADMIN)")
 @FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
 public class CustomerController {
 
@@ -37,7 +37,10 @@ public class CustomerController {
 
     @PostMapping
     @PreAuthorize("hasRole('ADMIN')")
-    @Operation(summary = "Tạo 1 khách hàng mới (Admin)")
+    @Operation(
+            summary = "Tạo mới hồ sơ khách hàng",
+            description = "Tạo thông tin hồ sơ khách hàng mới (họ tên, email, số điện thoại, địa chỉ nhận hàng). Quyền truy cập: ADMIN."
+    )
     public ResponseEntity<ApiResponse<CustomerResponse>> createCustomer(
             @Valid @RequestBody CustomerCreationRequest customerCreationRequest
     ) {
@@ -51,7 +54,10 @@ public class CustomerController {
 
     @GetMapping
     @PreAuthorize("hasRole('ADMIN')")
-    @Operation(summary = "Lấy danh sách khách hàng bằng phân trang (Admin)")
+    @Operation(
+            summary = "Lấy danh sách khách hàng có phân trang",
+            description = "Truy vấn danh sách thông tin khách hàng trong hệ thống theo định dạng phân trang (page, size). Quyền truy cập: ADMIN."
+    )
     public ResponseEntity<ApiResponse<PageResponse<CustomerResponse>>> getAllCustomer(
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "10") int size
@@ -66,7 +72,10 @@ public class CustomerController {
 
     @GetMapping("/{id}")
     @PreAuthorize("hasAnyRole('USER', 'ADMIN')")
-    @Operation(summary = "Lấy thông tin chi tiết 1 khách hàng (User / Admin)")
+    @Operation(
+            summary = "Lấy thông tin chi tiết một khách hàng theo ID",
+            description = "Tra cứu chi tiết thông tin cá nhân và địa chỉ nhận hàng của khách hàng theo mã ID. Quyền truy cập: USER (chính chủ) hoặc ADMIN."
+    )
     public ResponseEntity<ApiResponse<CustomerResponse>> getCustomerById(@PathVariable Integer id) {
         CustomerResponse customerResponse = customerService.getCustomerById(id);
 
@@ -77,7 +86,10 @@ public class CustomerController {
 
     @PutMapping("/{id}")
     @PreAuthorize("hasAnyRole('USER', 'ADMIN')")
-    @Operation(summary = "Chỉnh sửa thông tin khách hàng (User / Admin)")
+    @Operation(
+            summary = "Cập nhật thông tin chi tiết khách hàng",
+            description = "Cập nhật các trường thông tin của khách hàng như họ tên, số điện thoại và địa chỉ giao hàng. Quyền truy cập: USER (chính chủ) hoặc ADMIN."
+    )
     public ResponseEntity<ApiResponse<CustomerResponse>> updateCustomer(
             @PathVariable Integer id,
             @Valid @RequestBody CustomerUpdateRequest customerUpdateRequest
@@ -92,7 +104,10 @@ public class CustomerController {
 
     @DeleteMapping("/{id}")
     @PreAuthorize("hasRole('ADMIN')")
-    @Operation(summary = "Xóa khách hàng (Admin)")
+    @Operation(
+            summary = "Xóa hồ sơ khách hàng khỏi hệ thống",
+            description = "Xóa thông tin khách hàng theo mã ID nếu khách hàng không còn đơn hàng nào đang liên kết hoặc xử lý. Quyền truy cập: ADMIN."
+    )
     public ResponseEntity<ApiResponse<Void>> deleteCustomer(@PathVariable Integer id) {
         customerService.deteleCustomer(id);
 

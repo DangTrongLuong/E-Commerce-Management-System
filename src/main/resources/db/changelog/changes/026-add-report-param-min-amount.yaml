@@ -1,0 +1,15 @@
+databaseChangeLog:
+  - changeSet:
+      id: 026-add-report-param-min-amount
+      author: oms
+      failOnError: true
+      changes:
+        - insert:
+            tableName: report_param
+            columns:
+              - column: { name: report_code, value: "RPT_REVENUE_DAILY" }
+              - column: { name: name, value: "minAmount" }
+              - column: { name: data_type, value: "DECIMAL" }
+              - column: { name: required, valueBoolean: false }
+              - column: { name: description, value: "Doanh thu tối thiểu mỗi đơn hàng (DECIMAL, không bắt buộc)" }
+              - column: { name: param_order, valueNumeric: 4 }

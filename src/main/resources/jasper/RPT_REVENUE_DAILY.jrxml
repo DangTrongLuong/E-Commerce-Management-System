@@ -1,0 +1,137 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Created with Jaspersoft Studio version 7.0.8.final using JasperReports Library version 7.0.8-6f896111  -->
+<jasperReport name="RPT_REVENUE_DAILY" language="java" pageWidth="595" pageHeight="842" columnWidth="555" leftMargin="20" rightMargin="20" topMargin="25" bottomMargin="25" uuid="e61b9a12-8821-4f01-9231-1a2b3c4d5e6f">
+	<property name="net.sf.jasperreports.export.xlsx.detect.cell.type" value="true"/>
+	<parameter name="fromDate" class="java.lang.String"/>
+	<parameter name="toDate" class="java.lang.String"/>
+	<parameter name="customerId" class="java.lang.Long"/>
+	<parameter name="customerName" class="java.lang.String"/>
+	<parameter name="dateRangeText" class="java.lang.String"/>
+	<parameter name="exportTime" class="java.lang.String"/>
+	<parameter name="minAmount" class="java.math.BigDecimal"/>
+	<query language="sql"><![CDATA[
+		WITH RECURSIVE date_series AS (
+		    SELECT CAST($P{fromDate} AS DATE) AS report_date
+		    UNION ALL
+		    SELECT report_date + INTERVAL 1 DAY
+		    FROM date_series
+		    WHERE report_date < CAST($P{toDate} AS DATE)
+		)
+		SELECT 
+		    ROW_NUMBER() OVER (ORDER BY ds.report_date) AS stt,
+		    DATE_FORMAT(ds.report_date, '%d/%m/%Y') AS report_date_str,
+		    COUNT(o.id) AS order_count,
+		    COALESCE(SUM(o.total_amount), 0) AS total_revenue
+		FROM date_series ds
+		LEFT JOIN orders o ON 
+		    DATE(DATE_ADD(o.paid_at, INTERVAL 7 HOUR)) = ds.report_date
+		    AND o.status IN ('PAID', 'CONFIRMED', 'COMPLETED')
+		    AND ($P{customerId} IS NULL OR o.customer_id = $P{customerId})
+		    AND ($P{minAmount} IS NULL OR o.total_amount >= $P{minAmount})
+		GROUP BY ds.report_date
+		ORDER BY ds.report_date ASC
+	]]></query>
+	<field name="stt" class="java.lang.Long"/>
+	<field name="report_date_str" class="java.lang.String"/>
+	<field name="order_count" class="java.lang.Long"/>
+	<field name="total_revenue" class="java.math.BigDecimal"/>
+	<variable name="sumOrderCount" calculation="Sum" class="java.lang.Long">
+		<expression><![CDATA[$F{order_count}]]></expression>
+	</variable>
+	<variable name="sumTotalRevenue" calculation="Sum" class="java.math.BigDecimal">
+		<expression><![CDATA[$F{total_revenue}]]></expression>
+	</variable>
+	<title height="95" splitType="Stretch">
+		<element kind="staticText" uuid="9b4503df-a620-41dc-983e-1917491600f9" x="0" y="5" width="555" height="28" fontName="DejaVu Sans" fontSize="16.0" bold="true" pdfEmbedded="true" pdfEncoding="Identity-H" hTextAlign="Center">
+			<text><![CDATA[BÁO CÁO DOANH THU THEO NGÀY]]></text>
+		</element>
+		<element kind="textField" uuid="5056244a-d1f9-4172-bdf1-05af1a0424b2" x="0" y="35" width="555" height="20" fontName="DejaVu Sans" fontSize="11.0" italic="true" pdfEncoding="Identity-H" pdfEmbedded="true" hTextAlign="Center">
+			<expression><![CDATA[$P{dateRangeText}]]></expression>
+		</element>
+		<element kind="textField" uuid="c92d1e04-5833-4aa9-8d8c-d089245eec27" x="10" y="65" width="280" height="20" fontName="DejaVu Sans" fontSize="10.0" pdfEncoding="Identity-H" pdfEmbedded="true">
+			<expression><![CDATA["Khách hàng: " + $P{customerName}]]></expression>
+		</element>
+		<element kind="textField" uuid="1904c4be-a80b-4eec-8461-aa0c297dd76c" x="290" y="65" width="255" height="20" fontName="DejaVu Sans" fontSize="10.0" pdfEncoding="Identity-H" pdfEmbedded="true" hTextAlign="Right">
+			<expression><![CDATA[$P{exportTime}]]></expression>
+		</element>
+	</title>
+	<columnHeader height="25" splitType="Stretch">
+		<element kind="staticText" uuid="268c74a7-5d24-4c3c-9ad6-fd4f445902f1" x="30" y="0" width="50" height="25" fontName="DejaVu Sans" fontSize="10.0" bold="true" pdfEmbedded="true" pdfEncoding="Identity-H" hTextAlign="Center" vTextAlign="Middle">
+			<box>
+				<pen lineWidth="0.75" lineColor="#000000"/>
+			</box>
+			<text><![CDATA[STT]]></text>
+		</element>
+		<element kind="staticText" uuid="6bbc1fb6-b716-48b4-97f9-8f19e9b45c6c" x="80" y="0" width="130" height="25" fontName="DejaVu Sans" fontSize="10.0" bold="true" pdfEmbedded="true" pdfEncoding="Identity-H" hTextAlign="Center" vTextAlign="Middle">
+			<box>
+				<pen lineWidth="0.75" lineColor="#000000"/>
+			</box>
+			<text><![CDATA[Ngày]]></text>
+		</element>
+		<element kind="staticText" uuid="241971e3-a86f-4b10-b68e-b2920d294317" x="210" y="0" width="130" height="25" fontName="DejaVu Sans" fontSize="10.0" bold="true" pdfEmbedded="true" pdfEncoding="Identity-H" hTextAlign="Center" vTextAlign="Middle">
+			<box>
+				<pen lineWidth="0.75" lineColor="#000000"/>
+			</box>
+			<text><![CDATA[Số đơn hàng]]></text>
+		</element>
+		<element kind="staticText" uuid="c91695bb-a55d-44b2-94c4-e63bfa996f64" x="340" y="0" width="185" height="25" fontName="DejaVu Sans" fontSize="10.0" bold="true" pdfEmbedded="true" pdfEncoding="Identity-H" hTextAlign="Center" vTextAlign="Middle">
+			<box>
+				<pen lineWidth="0.75" lineColor="#000000"/>
+			</box>
+			<text><![CDATA[Doanh thu (₫)]]></text>
+		</element>
+	</columnHeader>
+	<detail>
+		<band height="22" splitType="Stretch">
+			<element kind="textField" uuid="9c5774b1-309e-4f84-8d29-479d5e743296" x="30" y="0" width="50" height="22" fontName="DejaVu Sans" fontSize="10.0" pdfEncoding="Identity-H" pdfEmbedded="true" hTextAlign="Center" vTextAlign="Middle">
+				<box>
+					<pen lineWidth="0.5" lineColor="#666666"/>
+				</box>
+				<expression><![CDATA[$F{stt}]]></expression>
+			</element>
+			<element kind="textField" uuid="8aecc069-46d8-4090-b914-7a2e59f4a1b2" x="80" y="0" width="130" height="22" fontName="DejaVu Sans" fontSize="10.0" pdfEncoding="Identity-H" pdfEmbedded="true" hTextAlign="Center" vTextAlign="Middle">
+				<box>
+					<pen lineWidth="0.5" lineColor="#666666"/>
+				</box>
+				<expression><![CDATA[$F{report_date_str}]]></expression>
+			</element>
+			<element kind="textField" uuid="65da3b5a-a762-47e8-be1b-0493b114ed82" x="210" y="0" width="130" height="22" fontName="DejaVu Sans" fontSize="10.0" pdfEncoding="Identity-H" pdfEmbedded="true" hTextAlign="Center" vTextAlign="Middle">
+				<box>
+					<pen lineWidth="0.5" lineColor="#666666"/>
+				</box>
+				<expression><![CDATA[$F{order_count}]]></expression>
+			</element>
+			<element kind="textField" uuid="e3ea5846-c8f5-4cd0-9030-8c0541adbb4d" x="340" y="0" width="185" height="22" fontName="DejaVu Sans" fontSize="10.0" pattern="#,##0" pdfEncoding="Identity-H" pdfEmbedded="true" hTextAlign="Right" vTextAlign="Middle">
+				<box rightPadding="8">
+					<pen lineWidth="0.5" lineColor="#666666"/>
+				</box>
+				<expression><![CDATA[$F{total_revenue}]]></expression>
+			</element>
+		</band>
+	</detail>
+	<pageFooter height="25" splitType="Stretch">
+		<element kind="textField" uuid="7a6b728e-6a12-4428-a474-e167cbece4ea" x="395" y="5" width="130" height="18" fontName="DejaVu Sans" fontSize="9.0" pdfEncoding="Identity-H" pdfEmbedded="true" hTextAlign="Right">
+			<expression><![CDATA["Trang " + $V{PAGE_NUMBER} + "/" + $V{PAGE_NUMBER}]]></expression>
+		</element>
+	</pageFooter>
+	<summary height="30" splitType="Stretch">
+		<element kind="staticText" uuid="9def305f-4a40-46bf-96d4-c4b45783ec28" x="30" y="0" width="180" height="25" fontName="DejaVu Sans" fontSize="10.0" bold="true" pdfEmbedded="true" pdfEncoding="Identity-H" hTextAlign="Center" vTextAlign="Middle">
+			<box>
+				<pen lineWidth="0.75" lineColor="#000000"/>
+			</box>
+			<text><![CDATA[Tổng cộng]]></text>
+		</element>
+		<element kind="textField" uuid="682ac001-30cd-4056-a8e0-9ed6c58adfee" x="210" y="0" width="130" height="25" fontName="DejaVu Sans" fontSize="10.0" bold="true" pdfEncoding="Identity-H" pdfEmbedded="true" hTextAlign="Center" vTextAlign="Middle">
+			<box>
+				<pen lineWidth="0.75" lineColor="#000000"/>
+			</box>
+			<expression><![CDATA[$V{sumOrderCount}]]></expression>
+		</element>
+		<element kind="textField" uuid="5926ef4f-54c5-4cfd-bf6b-643c5e4276af" x="340" y="0" width="185" height="25" fontName="DejaVu Sans" fontSize="10.0" pattern="#,##0" bold="true" pdfEncoding="Identity-H" pdfEmbedded="true" hTextAlign="Right" vTextAlign="Middle">
+			<box rightPadding="8">
+				<pen lineWidth="0.75" lineColor="#000000"/>
+			</box>
+			<expression><![CDATA[$V{sumTotalRevenue}]]></expression>
+		</element>
+	</summary>
+</jasperReport>

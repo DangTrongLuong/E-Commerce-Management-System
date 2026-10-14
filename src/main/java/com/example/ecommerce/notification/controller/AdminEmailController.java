@@ -23,13 +23,16 @@ import org.springframework.web.bind.annotation.*;
 @RequestMapping("/api/admin/emails")
 @FieldDefaults(makeFinal = true, level = AccessLevel.PRIVATE)
 @PreAuthorize("hasRole('ADMIN')")
-@Tag(name = "Admin Emails", description = "Quản lý hàng đợi email outbox và gửi lại email lỗi (ADMIN)")
+@Tag(name = "Hàng Đợi Email (Admin Emails)", description = "Giám sát hàng đợi email outbox và gửi lại các email gửi lỗi (Quyền: ADMIN)")
 public class AdminEmailController {
 
     EmailOutboxService emailOutboxService;
 
     @GetMapping
-    @Operation(summary = "Lấy danh sách email outbox (hỗ trợ lọc status=FAILED, phân trang)")
+    @Operation(
+            summary = "Lấy danh sách email trong hàng đợi outbox",
+            description = "Truy vấn danh sách email gửi đi từ hệ thống. Hỗ trợ lọc theo trạng thái (status: PENDING, SENT, FAILED), phân trang và sắp xếp giảm dần theo thời gian tạo. Quyền truy cập: ADMIN."
+    )
     public ResponseEntity<ApiResponse<PageResponse<EmailOutboxResponse>>> getEmails(
             @RequestParam(required = false) EmailOutboxStatus status,
             @RequestParam(defaultValue = "0") int page,
@@ -42,7 +45,10 @@ public class AdminEmailController {
     }
 
     @PostMapping("/{id}/resend")
-    @Operation(summary = "Gửi lại email lỗi (đặt lại STATUS = PENDING, ATTEMPTS = 0)")
+    @Operation(
+            summary = "Gửi lại email bị lỗi trong hàng đợi",
+            description = "Đặt lại trạng thái email lỗi sang PENDING và số lượt thử về 0 để dịch vụ gửi thư tự động kích hoạt gửi lại ngay lập tức. Quyền truy cập: ADMIN."
+    )
     public ResponseEntity<ApiResponse<EmailOutboxResponse>> resendEmail(@PathVariable Long id) {
         EmailOutboxResponse response = emailOutboxService.resendEmail(id);
         return ResponseEntity.ok(ApiResponse.success("Đã đưa email vào hàng đợi gửi lại thành công", response));

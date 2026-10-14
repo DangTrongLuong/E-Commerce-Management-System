@@ -34,7 +34,7 @@ import java.util.Map;
 @RestController
 @RequestMapping("/api/products")
 @FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
-@Tag(name = "Products", description = "Products catalog endpoints")
+@Tag(name = "Sản Phẩm (Products)", description = "Quản lý danh mục sản phẩm, tải ảnh lên Cloudinary và import dữ liệu hàng loạt (Quyền: Công khai, PRODUCT_OWNER, ADMIN)")
 public class ProductController {
 
     ProductService productService;
@@ -43,7 +43,10 @@ public class ProductController {
 
     @PostMapping(value = "/upload-image", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     @PreAuthorize("hasAnyRole('PRODUCT_OWNER', 'ADMIN')")
-    @Operation(summary = "Upload image to Cloudinary and return image URL (PO / Admin)")
+    @Operation(
+            summary = "Tải ảnh sản phẩm lên Cloudinary",
+            description = "Nhận tệp tin hình ảnh sản phẩm (định dạng JPG/PNG/WEBP/GIF, dung lượng tối đa 5MB), tải trực tiếp lên kho lưu trữ đám mây Cloudinary và trả về đường dẫn URL ảnh công khai. Quyền truy cập: PRODUCT_OWNER, ADMIN."
+    )
     public ResponseEntity<ApiResponse<Map<String, String>>> uploadProductImage(
             @Parameter(description = "File ảnh sản phẩm (tối đa 5MB, JPG/PNG/WEBP/GIF)")
             @RequestParam("file") MultipartFile file
@@ -54,7 +57,10 @@ public class ProductController {
 
     @PostMapping(value = "/import", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     @PreAuthorize("hasAnyRole('PRODUCT_OWNER', 'ADMIN')")
-    @Operation(summary = "Import products from CSV (PO / Admin)")
+    @Operation(
+            summary = "Nhập danh sách sản phẩm hàng loạt từ file CSV",
+            description = "Xử lý tệp dữ liệu CSV chứa danh sách sản phẩm. Tự động liên kết các sản phẩm hợp lệ với Product Owner đang thực hiện và tổng hợp báo cáo số lượng dòng thành công/thất bại kèm lý do lỗi. Quyền truy cập: PRODUCT_OWNER, ADMIN."
+    )
     public ResponseEntity<ApiResponse<ProductImportResultResponse>> importProducts(
             @Parameter(description = "File CSV chứa danh sách sản phẩm")
             @RequestParam("file") MultipartFile file
@@ -65,7 +71,10 @@ public class ProductController {
 
     @PostMapping
     @PreAuthorize("hasAnyRole('PRODUCT_OWNER', 'ADMIN')")
-    @Operation(summary = "Create a new product (PO / Admin)")
+    @Operation(
+            summary = "Thêm mới một sản phẩm vào hệ thống",
+            description = "Khởi tạo thông tin sản phẩm mới bao gồm tên, mô tả, giá niêm yết, số lượng tồn kho khả dụng và ảnh đại diện. Sản phẩm được gắn quyền sở hữu cho tài khoản tạo. Quyền truy cập: PRODUCT_OWNER, ADMIN."
+    )
     public ResponseEntity<ApiResponse<ProductResponse>> createProduct(
             @Valid @RequestBody ProductCreationRequest productCreationRequest
     ) {
@@ -78,7 +87,10 @@ public class ProductController {
 
     @GetMapping
     @PreAuthorize("permitAll()")
-    @Operation(summary = "Get list of products (Public / User / PO / Admin)")
+    @Operation(
+            summary = "Lấy danh sách sản phẩm công khai",
+            description = "Truy vấn danh mục sản phẩm công khai cho khách hàng và người dùng. Hỗ trợ tìm kiếm theo từ khóa (keyword), lọc theo trạng thái sản phẩm (status), phân trang và sắp xếp linh hoạt. Quyền truy cập: Công khai (Không cần đăng nhập)."
+    )
     public ResponseEntity<ApiResponse<PageResponse<ProductResponse>>> getAllProduct(
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size,
@@ -96,7 +108,10 @@ public class ProductController {
 
     @GetMapping("/mine")
     @PreAuthorize("hasRole('PRODUCT_OWNER')")
-    @Operation(summary = "Get only the authenticated product owner's products")
+    @Operation(
+            summary = "Lấy danh sách sản phẩm do chính PO quản lý",
+            description = "Truy vấn danh sách các sản phẩm thuộc quyền sở hữu quản lý của tài khoản Product Owner đang đăng nhập. Hỗ trợ tìm kiếm theo từ khóa, lọc trạng thái và phân trang. Quyền truy cập: PRODUCT_OWNER."
+    )
     public ResponseEntity<ApiResponse<PageResponse<ProductResponse>>> getMyProducts(
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size,
@@ -112,7 +127,10 @@ public class ProductController {
 
     @GetMapping("/{id}")
     @PreAuthorize("permitAll()")
-    @Operation(summary = "Get product details by ID (Public / User / PO / Admin)")
+    @Operation(
+            summary = "Lấy thông tin chi tiết sản phẩm theo ID",
+            description = "Tra cứu toàn bộ thông tin chi tiết của sản phẩm bao gồm tên gọi, đơn giá, số lượng tồn kho còn lại, mô tả chi tiết và hình ảnh minh họa. Quyền truy cập: Công khai."
+    )
     public ResponseEntity<ApiResponse<ProductResponse>> getProductById(@PathVariable Integer id) {
         ProductResponse productResponse = productService.getProductById(id);
         return ResponseEntity
@@ -122,7 +140,10 @@ public class ProductController {
 
     @PutMapping("/{id}")
     @PreAuthorize("hasAnyRole('PRODUCT_OWNER', 'ADMIN')")
-    @Operation(summary = "Update product details (PO / Admin)")
+    @Operation(
+            summary = "Cập nhật thông tin chi tiết sản phẩm",
+            description = "Chỉnh sửa các trường thông tin sản phẩm (tên, giá bán, số lượng trong kho, mô tả, ảnh, trạng thái kinh doanh). Product Owner chỉ được sửa sản phẩm của chính mình, ADMIN có toàn quyền sửa mọi sản phẩm. Quyền truy cập: PRODUCT_OWNER, ADMIN."
+    )
     public ResponseEntity<ApiResponse<ProductResponse>> updateProduct(
             @PathVariable Integer id,
             @Valid @RequestBody ProductUpdateRequest productUpdateRequest
@@ -136,7 +157,10 @@ public class ProductController {
 
     @DeleteMapping("/{id}")
     @PreAuthorize("hasAnyRole('PRODUCT_OWNER', 'ADMIN')")
-    @Operation(summary = "Delete product (PO / Admin)")
+    @Operation(
+            summary = "Xóa sản phẩm khỏi hệ thống",
+            description = "Xóa sản phẩm theo mã định danh ID. PO chỉ được xóa sản phẩm của mình, ADMIN có toàn quyền xóa. Quyền truy cập: PRODUCT_OWNER, ADMIN."
+    )
     public ResponseEntity<ApiResponse<Void>> deleteProduct(@PathVariable Integer id) {
         productService.deleteProduct(id);
         return ResponseEntity

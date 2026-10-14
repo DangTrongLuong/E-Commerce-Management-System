@@ -175,7 +175,6 @@ public class CartServiceImpl implements CartService {
 
                 BigDecimal subtotal = product.getPrice().multiply(BigDecimal.valueOf(item.getQuantity()));
                 totalAmount = totalAmount.add(subtotal);
-                totalItems += item.getQuantity();
 
                 itemResponses.add(CartItemResponse.builder()
                         .id(item.getId())
@@ -194,7 +193,7 @@ public class CartServiceImpl implements CartService {
                 .id(cart.getId())
                 .customerId(cart.getCustomer() != null ? cart.getCustomer().getId() : null)
                 .items(itemResponses)
-                .totalItems(totalItems)
+                .totalItems(itemResponses.size())
                 .totalAmount(totalAmount)
                 .build();
     }

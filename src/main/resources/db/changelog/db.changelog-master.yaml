@@ -63,6 +63,12 @@ databaseChangeLog:
   - include:
       file: changes/024-create-cart-and-cart-items-table.yaml
       relativeToChangelogFile: true
+  - include:
+      file: changes/025-create-report-paramset-and-seed.yaml
+      relativeToChangelogFile: true
+  - include:
+      file: changes/026-add-report-param-min-amount.yaml
+      relativeToChangelogFile: true
 #   - include:
 #       file: changes/900-seed-dev-users.yaml
 #       relativeToChangelogFile: true
