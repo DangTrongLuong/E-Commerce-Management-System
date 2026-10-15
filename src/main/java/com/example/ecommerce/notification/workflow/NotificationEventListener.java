@@ -39,10 +39,6 @@ public class NotificationEventListener {
                 recipient = ticket.getApprover();
                 message = "Bạn có một yêu cầu phê duyệt đơn hàng mới chờ Product Owner (PO) xử lý: Mã phiếu #" + ticket.getId();
             }
-            case PENDING_AD_APPROVE -> {
-                recipient = ticket.getApprover();
-                message = "Yêu cầu phê duyệt đơn hàng #" + ticket.getId() + " đã được PO duyệt, đang chờ Quản trị viên (Admin) phê duyệt cấp 2.";
-            }
             case APPROVED -> {
                 recipient = ticket.getRequester();
                 message = "Yêu cầu phê duyệt đơn hàng #" + ticket.getId() + " của bạn đã được duyệt thành công!";

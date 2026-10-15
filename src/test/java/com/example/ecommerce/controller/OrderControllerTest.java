@@ -77,6 +77,37 @@ class OrderControllerTest {
     }
 
     @Test
+    @WithMockUser(roles = "ADMIN")
+    @DisplayName("POST /api/orders - Admin tạo đơn hàng thành công HTTP 201 CREATED")
+    void createOrder_Admin_Returns201() throws Exception {
+        OrderCreationRequest request = OrderCreationRequest.builder()
+                .customerId(1)
+                .items(List.of(
+                        OrderItemRequest.builder()
+                                .productId(101)
+                                .quantity(2)
+                                .build()
+                ))
+                .build();
+
+        OrderResponse mockResponse = OrderResponse.builder()
+                .id(1002)
+                .status(OrderStatus.PENDING)
+                .totalAmount(new BigDecimal("3000.00"))
+                .build();
+
+        when(orderService.createOrders(any(OrderCreationRequest.class))).thenReturn(List.of(mockResponse));
+
+        mockMvc.perform(post("/api/orders")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.data[0].id").value(1002))
+                .andExpect(jsonPath("$.data[0].status").value("PENDING"));
+    }
+
+    @Test
     @WithMockUser(roles = "USER")
     @DisplayName("POST /api/orders - Thất bại khi thiếu tồn kho (insufficientStock) HTTP 409 CONFLCT")
     void createOrder_InsufficientStock_Returns409() throws Exception {

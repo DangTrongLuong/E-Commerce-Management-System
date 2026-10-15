@@ -50,10 +50,10 @@ public class OrderController {
 
     // Tạo mới đơn hàng (hỗ trợ tự động tách đơn theo PO)
     @PostMapping
-    @PreAuthorize("hasRole('USER')")
+    @PreAuthorize("hasAnyRole('USER', 'ADMIN')")
     @Operation(
             summary = "Tạo mới đơn hàng (Tự động tách đơn theo PO)",
-            description = "Tạo đơn hàng mới từ danh sách mặt hàng đã chọn. Hệ thống tự động phân loại và tách thành các đơn hàng độc lập theo từng Product Owner (PO), kiểm tra và giữ trước số lượng tồn kho khả dụng. Quyền truy cập: USER."
+            description = "Tạo đơn hàng mới từ danh sách mặt hàng đã chọn. Hệ thống tự động phân loại và tách thành các đơn hàng độc lập theo từng Product Owner (PO), kiểm tra và giữ trước số lượng tồn kho khả dụng. Quyền truy cập: USER, ADMIN."
     )
     public ResponseEntity<ApiResponse<List<OrderResponse>>> createOrder(
             @Valid @RequestBody OrderCreationRequest request) {
@@ -86,10 +86,10 @@ public class OrderController {
 
     // Thêm sản phẩm vào đơn hàng PENDING và gộp số lượng
     @PostMapping("/{orderId}/items")
-    @PreAuthorize("hasRole('USER')")
+    @PreAuthorize("hasAnyRole('USER', 'ADMIN')")
     @Operation(
             summary = "Thêm sản phẩm vào đơn hàng PENDING",
-            description = "Thêm một sản phẩm vào đơn hàng đang chờ thanh toán (PENDING). Nếu sản phẩm đã có trong đơn thì tự động gộp số lượng và giữ thêm tồn kho tương ứng. Quyền truy cập: USER."
+            description = "Thêm một sản phẩm vào đơn hàng đang chờ thanh toán (PENDING). Nếu sản phẩm đã có trong đơn thì tự động gộp số lượng và giữ thêm tồn kho tương ứng. Quyền truy cập: USER, ADMIN."
     )
     public ResponseEntity<ApiResponse<OrderResponse>> addItemToOrder(
             @PathVariable Integer orderId,
@@ -102,10 +102,10 @@ public class OrderController {
 
     // Cập nhật số lượng sản phẩm trong đơn hàng PENDING
     @PatchMapping("/{orderId}/items/{productId}")
-    @PreAuthorize("hasRole('USER')")
+    @PreAuthorize("hasAnyRole('USER', 'ADMIN')")
     @Operation(
             summary = "Cập nhật số lượng mặt hàng trong đơn PENDING",
-            description = "Điều chỉnh số lượng của một sản phẩm trong đơn PENDING. Tự động kiểm tra tồn kho tăng/giảm, hoàn lại phần dư thừa vào kho và tính toán lại tổng tiền đơn hàng. Quyền truy cập: USER."
+            description = "Điều chỉnh số lượng của một sản phẩm trong đơn PENDING. Tự động kiểm tra tồn kho tăng/giảm, hoàn lại phần dư thừa vào kho và tính toán lại tổng tiền đơn hàng. Quyền truy cập: USER, ADMIN."
     )
     public ResponseEntity<ApiResponse<OrderResponse>> updateOrderItemQuantity(
             @PathVariable Integer orderId,
@@ -117,10 +117,10 @@ public class OrderController {
 
     // Xóa một sản phẩm khỏi đơn hàng PENDING và hoàn lại tồn kho
     @DeleteMapping("/{orderId}/items/{productId}")
-    @PreAuthorize("hasRole('USER')")
+    @PreAuthorize("hasAnyRole('USER', 'ADMIN')")
     @Operation(
             summary = "Xóa sản phẩm khỏi đơn hàng PENDING",
-            description = "Gỡ bỏ một sản phẩm khỏi đơn PENDING, hoàn trả lại toàn bộ số lượng tồn kho đã giữ của mặt hàng đó và cập nhật lại tổng tiền. Quyền truy cập: USER."
+            description = "Gỡ bỏ một sản phẩm khỏi đơn PENDING, hoàn trả lại toàn bộ số lượng tồn kho đã giữ của mặt hàng đó và cập nhật lại tổng tiền. Quyền truy cập: USER, ADMIN."
     )
     public ResponseEntity<ApiResponse<OrderResponse>> deleteOrderItem(
             @PathVariable Integer orderId,
@@ -131,10 +131,10 @@ public class OrderController {
 
     // Xóa toàn bộ đơn hàng PENDING và hoàn lại tồn kho cho tất cả sản phẩm
     @DeleteMapping("/{orderId}")
-    @PreAuthorize("hasRole('USER')")
+    @PreAuthorize("hasAnyRole('USER', 'ADMIN')")
     @Operation(
             summary = "Hủy và xóa toàn bộ đơn hàng PENDING",
-            description = "Hủy bỏ đơn hàng PENDING, giải phóng và hoàn trả lại kho toàn bộ số lượng tồn kho của tất cả sản phẩm trong đơn. Quyền truy cập: USER."
+            description = "Hủy bỏ đơn hàng PENDING, giải phóng và hoàn trả lại kho toàn bộ số lượng tồn kho của tất cả sản phẩm trong đơn. Quyền truy cập: USER, ADMIN."
     )
     public ResponseEntity<ApiResponse<Void>> deleteOrder(@PathVariable Integer orderId) {
         orderService.deleteOrder(orderId);

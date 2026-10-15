@@ -98,10 +98,22 @@ public class OrderService {
 
     @Transactional(rollbackFor = Exception.class)
     public List<OrderResponse> createOrders(OrderCreationRequest request) {
-        securityUtils.verifyUserOrAdmin(Long.valueOf(request.getCustomerId()));
+        final Integer targetCustomerId;
+        if (request.getCustomerId() != null) {
+            targetCustomerId = request.getCustomerId();
+        } else {
+            AppUser currentUser = securityUtils.getCurrentUser();
+            if (currentUser.getCustomer() != null) {
+                targetCustomerId = currentUser.getCustomer().getId();
+            } else {
+                throw new BadRequestExeption("Người đặt hàng (customerId) không thể để trống");
+            }
+        }
 
-        Customer customer = customerRepository.findById(request.getCustomerId())
-                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy khách hàng với mã ID: " + request.getCustomerId()));
+        securityUtils.verifyUserOrAdmin(Long.valueOf(targetCustomerId));
+
+        Customer customer = customerRepository.findById(targetCustomerId)
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy khách hàng với mã ID: " + targetCustomerId));
 
         if (customer.getStatus() != CustomerStatus.ACTIVE) {
             throw new BadRequestExeption("Tài khoản khách hàng đang ở trạng thái ngưng hoạt động");
