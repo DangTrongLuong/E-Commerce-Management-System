@@ -74,13 +74,29 @@ app:
     timeout-minutes: ${PAYMENT_TIMEOUT_MINUTES:15}
   email:
     backoff-base-seconds: ${EMAIL_BACKOFF_BASE_SECONDS:60}
+  executors:
+    dashboard:
+      core-size: 4
+      max-size: 4
+      queue-capacity: 50
+  dashboard:
+    part-timeout: 1500ms
   demo:
     fail-after-paid: ${DEMO_FAIL_AFTER_PAID:false}
+    dashboard:
+      delay:
+        revenueToday: 0s
+        orderCountByStatus: 0s
+        top5Products: 0s
+        lowStockProducts: 0s
+      fail: []
 
 server:
   port: 8080
 
 logging:
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] [%X{traceId}] %-5level %logger{36} - %msg%n"
   level:
     com.example.ecommerce: INFO
     org.springframework.security: INFO

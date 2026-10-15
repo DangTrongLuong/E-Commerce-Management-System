@@ -18,6 +18,7 @@ import lombok.experimental.FieldDefaults;
 import lombok.extern.slf4j.Slf4j;
 
 import java.util.List;
+import java.util.Map;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -143,6 +144,18 @@ public class OrderController {
     // =========================================================================
     // 3. TRUY VẤN ĐƠN HÀNG (ORDER QUERY & GETTERS)
     // =========================================================================
+
+    // Đếm số lượng đơn hàng theo từng trạng thái (cho tab filter đơn hàng của khách)
+    @GetMapping("/status-counts")
+    @PreAuthorize("hasRole('USER')")
+    @Operation(
+            summary = "Đếm số lượng đơn hàng theo từng trạng thái của khách hàng",
+            description = "Trả về số lượng đơn hàng theo từng trạng thái (kèm tổng số đơn ALL) phục vụ hiển thị số đếm (Badge) trên các tab lọc đơn hàng. Quyền truy cập: USER (tự động đếm theo tài khoản của khách hàng đang đăng nhập)."
+    )
+    public ResponseEntity<ApiResponse<Map<String, Long>>> getOrderStatusCounts() {
+        Map<String, Long> counts = orderService.getOrderStatusCounts();
+        return ResponseEntity.ok(ApiResponse.success("Lấy số lượng đơn hàng theo trạng thái thành công", counts));
+    }
 
     // Lấy chi tiết đơn hàng theo ID
     @GetMapping("/{id}")

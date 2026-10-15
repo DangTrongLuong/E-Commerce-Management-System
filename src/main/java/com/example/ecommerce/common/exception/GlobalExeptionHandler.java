@@ -249,6 +249,13 @@ public class GlobalExeptionHandler {
         return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(body);
     }
 
+    @ExceptionHandler({java.util.concurrent.RejectedExecutionException.class, DashboardBusyException.class})
+    public ResponseEntity<ApiResponse<Object>> handleDashboardBusy(Exception ex) {
+        log.warn("Dashboard executor rejected task (system busy): {}", ex.getMessage());
+        return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE)
+                .body(ApiResponse.error("DASHBOARD_BUSY", "Hệ thống đang bận, vui lòng thử lại sau."));
+    }
+
     // 500 INTERNAL ERROR
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ApiResponse<Object>> handleGenericException(Exception ex) {

@@ -38,4 +38,9 @@ public interface ProductRepository extends JpaRepository<Product, Integer>, JpaS
     @Modifying(clearAutomatically = true, flushAutomatically = true)
     @Query("UPDATE Product p SET p.stock = p.stock + :quantity WHERE p.Id = :id")
     int increaseStockAtomic(@Param("id") Integer id, @Param("quantity") Integer quantity);
+
+    @Query("SELECT p.Id AS productId, p.name AS name, p.stock AS stock FROM Product p " +
+            "WHERE p.status = com.example.ecommerce.product.enums.ProductStatus.ACTIVE AND p.stock <= 5 " +
+            "ORDER BY p.stock ASC, p.Id ASC")
+    List<LowStockProductProjection> findLowStockProducts();
 }

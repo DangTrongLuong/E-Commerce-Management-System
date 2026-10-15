@@ -190,9 +190,6 @@ public class OrderService {
             if (total.compareTo(new BigDecimal("500000")) < 0) {
                 requiredLevel = 0;
                 ticketStatus = TicketStatus.APPROVED;
-            } else if (total.compareTo(new BigDecimal("5000000")) >= 0) {
-                requiredLevel = 2;
-                ticketStatus = TicketStatus.PENDING_PO_APPROVE;
             }
 
             PurchaseTicket ticket = PurchaseTicket.builder()
@@ -725,9 +722,6 @@ public class OrderService {
         if (total.compareTo(new BigDecimal("500000")) < 0) {
             requiredLevel = 0;
             targetStatus = TicketStatus.APPROVED;
-        } else if (total.compareTo(new BigDecimal("5000000")) >= 0) {
-            requiredLevel = 2;
-            targetStatus = TicketStatus.PENDING_PO_APPROVE;
         }
 
         TicketStatus oldStatus = ticket.getStatus();
@@ -804,5 +798,38 @@ public class OrderService {
                         .createdAt(history.getCreatedAt())
                         .build())
                 .collect(Collectors.toList());
+    }
+
+    @Transactional(readOnly = true)
+    public Map<String, Long> getOrderStatusCounts() {
+        AppUser currentUser = securityUtils.getCurrentUser();
+        if (currentUser.getCustomer() == null) {
+            throw new BadRequestExeption("Tài khoản chưa được liên kết với hồ sơ khách hàng.");
+        }
+        Integer customerId = currentUser.getCustomer().getId();
+
+        Map<String, Long> statusCounts = new LinkedHashMap<>();
+        for (OrderStatus status : OrderStatus.values()) {
+            statusCounts.put(status.name(), 0L);
+        }
+
+        List<Object[]> rows = orderRepository.countOrdersByStatusForCustomer(customerId);
+
+        long total = 0L;
+        if (rows != null) {
+            for (Object[] row : rows) {
+                if (row != null && row.length >= 2 && row[0] != null) {
+                    String status = row[0].toString();
+                    Long count = ((Number) row[1]).longValue();
+                    statusCounts.put(status, count);
+                    total += count;
+                }
+            }
+        }
+
+        Map<String, Long> response = new LinkedHashMap<>();
+        response.put("ALL", total);
+        response.putAll(statusCounts);
+        return response;
     }
 }

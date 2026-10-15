@@ -13,5 +13,6 @@ public class ReportParamResponse {
     private String name;
     private String dataType;
     private boolean required;
+    private String description;
     private int paramOrder;
 }

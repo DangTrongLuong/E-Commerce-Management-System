@@ -258,7 +258,7 @@ class WorkflowIntegrationTest {
     // -------------------------------------------------------------------------
 
     @Test
-    @DisplayName("Đơn hàng >= 5 triệu: Luồng duyệt 2 cấp PENDING_PO_APPROVE -> PENDING_AD_APPROVE -> APPROVED, cấm duyệt vượt cấp")
+    @DisplayName("Đơn hàng >= 5 triệu: Luồng duyệt 1 cấp PENDING_APPROVAL -> APPROVED bởi PO, không cần admin")
     void testHighValueOrderMultiLevelApprovalFlow() {
         authenticateAs(customerUser);
 
@@ -273,42 +273,22 @@ class WorkflowIntegrationTest {
         assertThat(orderRes.getStatus()).isEqualTo(OrderStatus.PENDING);
         assertThat(orderRes.getTotalAmount()).isEqualByComparingTo("6000000.00");
 
-        // 1. Kiểm tra vé được tạo với trạng thái ban đầu là PENDING_PO_APPROVE, requiredLevel = 2, currentLevel = 1
+        // 1. Kiểm tra vé được tạo với trạng thái ban đầu là PENDING_APPROVAL, requiredLevel = 1, currentLevel = 1
         PurchaseTicket ticket = ticketRepository.findByOrderId(Long.valueOf(orderRes.getId())).orElseThrow();
-        assertThat(ticket.getStatus()).isEqualTo(TicketStatus.PENDING_PO_APPROVE);
-        assertThat(ticket.getRequiredLevel()).isEqualTo(2);
+        assertThat(ticket.getStatus()).isEqualTo(TicketStatus.PENDING_APPROVAL);
+        assertThat(ticket.getRequiredLevel()).isEqualTo(1);
         assertThat(ticket.getCurrentLevel()).isEqualTo(1);
 
         // 2. Separation of duties: Requester không được tự duyệt
         assertThatThrownBy(() -> ticketService.approveTicket(ticket.getId(), null))
                 .isInstanceOf(SelfApprovalNotAllowedException.class);
 
-        // 3. Chống duyệt vượt cấp: Admin cố duyệt khi vé đang ở PENDING_PO_APPROVE -> Bị từ chối
-        authenticateAs(adminUser);
-        assertThatThrownBy(() -> ticketService.approveTicket(ticket.getId(), null))
-                .isInstanceOf(org.springframework.security.access.AccessDeniedException.class)
-                .hasMessageContaining("cần Product Owner (PO) duyệt trước")
-                .hasMessageContaining("không được duyệt vượt cấp");
-
-        // 4. Bước 1: PO phụ trách duyệt vé
+        // 3. PO phụ trách duyệt vé 1 lần -> Chuyển sang APPROVED
         authenticateAs(poUser);
         TicketResponse poApprovedTicket = ticketService.approveTicket(ticket.getId(), null);
-        assertThat(poApprovedTicket.getStatus()).isEqualTo(TicketStatus.PENDING_AD_APPROVE);
-        assertThat(poApprovedTicket.getCurrentLevel()).isEqualTo(2);
+        assertThat(poApprovedTicket.getStatus()).isEqualTo(TicketStatus.APPROVED);
 
-        // 5. Chống duyệt sai vai trò: PO cố duyệt tiếp khi vé đã chuyển sang PENDING_AD_APPROVE -> Bị từ chối
-        assertThatThrownBy(() -> ticketService.approveTicket(ticket.getId(), null))
-                .isInstanceOf(org.springframework.security.access.AccessDeniedException.class)
-                .hasMessageContaining("chờ Quản trị viên (Admin) phê duyệt cấp 2")
-                .hasMessageContaining("không có quyền duyệt bước này");
-
-        // 6. Bước 2: Admin duyệt vé cấp 2 -> Chuyển sang APPROVED
-        authenticateAs(adminUser);
-        TicketResponse adminApprovedTicket = ticketService.approveTicket(ticket.getId(), null);
-        assertThat(adminApprovedTicket.getStatus()).isEqualTo(TicketStatus.APPROVED);
-        assertThat(adminApprovedTicket.getCurrentLevel()).isEqualTo(2);
-
-        // 7. Verify trạng thái cuối cùng
+        // 4. Verify trạng thái cuối cùng
         PurchaseTicket finalTicket = ticketRepository.findById(ticket.getId()).orElseThrow();
         assertThat(finalTicket.getStatus()).isEqualTo(TicketStatus.APPROVED);
         assertThat(finalTicket.getDecidedAt()).isNotNull();
@@ -431,14 +411,14 @@ class WorkflowIntegrationTest {
         assertThat(poInbox.getContent().stream().anyMatch(t -> t.getId().equals(ticket.getId()))).isTrue();
 
         // 3. Khách hàng tăng số lượng Laptop lên 6 cái (giá 6M + 100k = 6.1M >= 5M)
-        // -> Ticket tự động chuyển sang PENDING_PO_APPROVE, requiredLevel = 2
+        // -> Ticket vẫn giữ PENDING_APPROVAL, requiredLevel = 1 (chỉ cần PO duyệt)
         authenticateAs(customerUser);
         orderService.updateOrderItemQuantity(orderRes.getId(), product1.getId(),
                 com.example.ecommerce.order.dto.UpdateOrderItemQuantityRequest.builder().quantity(6).build());
 
         PurchaseTicket ticketAfterIncrease = ticketRepository.findByOrderId(Long.valueOf(orderRes.getId())).orElseThrow();
-        assertThat(ticketAfterIncrease.getStatus()).isEqualTo(TicketStatus.PENDING_PO_APPROVE);
-        assertThat(ticketAfterIncrease.getRequiredLevel()).isEqualTo(2);
+        assertThat(ticketAfterIncrease.getStatus()).isEqualTo(TicketStatus.PENDING_APPROVAL);
+        assertThat(ticketAfterIncrease.getRequiredLevel()).isEqualTo(1);
         assertThat(ticketAfterIncrease.getCurrentLevel()).isEqualTo(1);
 
         // PO vẫn thấy trong inbox ở cấp 1!
