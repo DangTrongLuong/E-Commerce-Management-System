@@ -11,6 +11,10 @@ import com.example.ecommerce.common.exception.BadRequestExeption;
 import com.example.ecommerce.common.exception.ConflictException;
 import com.example.ecommerce.common.exception.DuplicateResourceException;
 import com.example.ecommerce.common.exception.ResourceNotFoundException;
+import com.example.ecommerce.product.dto.ProductResponse;
+import com.example.ecommerce.product.entity.Product;
+import com.example.ecommerce.product.mapper.ProductMapper;
+import com.example.ecommerce.product.repository.ProductRepository;
 import com.example.ecommerce.user.repository.AppUserRepository;
 import com.example.ecommerce.auth.repository.RefreshTokenRepository;
 import lombok.RequiredArgsConstructor;
@@ -18,6 +22,8 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+
+import java.util.List;
 
 @Slf4j
 @Service
@@ -27,6 +33,8 @@ public class AdminUserService {
     private final AppUserRepository userRepository;
     private final RefreshTokenRepository refreshTokenRepository;
     private final PasswordEncoder passwordEncoder;
+    private final ProductRepository productRepository;
+    private final ProductMapper productMapper;
 
     @Transactional(rollbackFor = Exception.class)
     public UserResponse createUser(CreateAdminUserRequest request) {
@@ -97,6 +105,31 @@ public class AdminUserService {
         refreshTokenRepository.deleteByUserId(userId);
 
         return mapToUserResponse(updatedUser);
+    }
+
+    @Transactional(readOnly = true)
+    public List<UserResponse> getProductOwners() {
+        return userRepository.findByRole(Role.PRODUCT_OWNER).stream()
+                .map(this::mapToUserResponse)
+                .toList();
+    }
+
+    @Transactional(readOnly = true)
+    public List<ProductResponse> getProductsByProductOwner(Long ownerId) {
+        AppUser owner = userRepository.findById(ownerId)
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy người dùng với mã ID: " + ownerId));
+
+        if (owner.getRole() != Role.PRODUCT_OWNER) {
+            throw new BadRequestExeption("Người dùng với mã ID: " + ownerId + " không phải là Product Owner (Role hiện tại: " + owner.getRole() + ")");
+        }
+
+        List<Product> products = productRepository.findProductsByOwnerIdNative(ownerId);
+        return products.stream()
+                .map(product -> {
+                    product.setOwner(owner);
+                    return productMapper.toResponse(product);
+                })
+                .toList();
     }
 
     private UserResponse mapToUserResponse(AppUser user) {

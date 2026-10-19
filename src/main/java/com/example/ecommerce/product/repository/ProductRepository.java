@@ -43,4 +43,7 @@ public interface ProductRepository extends JpaRepository<Product, Integer>, JpaS
             "WHERE p.status = com.example.ecommerce.product.enums.ProductStatus.ACTIVE AND p.stock <= 5 " +
             "ORDER BY p.stock ASC, p.Id ASC")
     List<LowStockProductProjection> findLowStockProducts();
+
+    @Query(value = "SELECT * FROM products WHERE owner_id = :ownerId ORDER BY id DESC", nativeQuery = true)
+    List<Product> findProductsByOwnerIdNative(@Param("ownerId") Long ownerId);
 }

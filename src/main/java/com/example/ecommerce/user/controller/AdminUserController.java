@@ -3,6 +3,7 @@ package com.example.ecommerce.user.controller;
 import com.example.ecommerce.user.dto.CreateAdminUserRequest;
 import com.example.ecommerce.user.dto.UpdateUserRoleRequest;
 import com.example.ecommerce.user.dto.UpdateUserStatusRequest;
+import com.example.ecommerce.product.dto.ProductResponse;
 import com.example.ecommerce.common.dto.ApiResponse;
 import com.example.ecommerce.user.dto.UserResponse;
 import com.example.ecommerce.user.service.AdminUserService;
@@ -15,6 +16,8 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.List;
+
 @RestController
 @RequestMapping("/api/admin/users")
 @RequiredArgsConstructor
@@ -23,6 +26,28 @@ import org.springframework.web.bind.annotation.*;
 public class AdminUserController {
 
     private final AdminUserService adminUserService;
+
+    @GetMapping("/product-owners")
+    @Operation(
+            summary = "Lấy danh sách tất cả người dùng có vai trò PRODUCT_OWNER",
+            description = "Truy xuất danh sách người dùng có vai trò PRODUCT_OWNER trong hệ thống. Quyền truy cập: ADMIN."
+    )
+    public ResponseEntity<ApiResponse<List<UserResponse>>> getProductOwners() {
+        List<UserResponse> response = adminUserService.getProductOwners();
+        return ResponseEntity.ok(ApiResponse.success("Lấy danh sách Product Owner thành công", response));
+    }
+
+    @GetMapping({ "/{id}/products", "/product-owners/{id}/products" })
+    @Operation(
+            summary = "Lấy danh sách sản phẩm thuộc một Product Owner (Native Query)",
+            description = "Sử dụng Native Query truy vấn danh sách các sản phẩm do Product Owner (PO) sở hữu theo ID người dùng. Quyền truy cập: ADMIN."
+    )
+    public ResponseEntity<ApiResponse<List<ProductResponse>>> getProductsByProductOwner(
+            @PathVariable("id") Long id
+    ) {
+        List<ProductResponse> response = adminUserService.getProductsByProductOwner(id);
+        return ResponseEntity.ok(ApiResponse.success("Lấy danh sách sản phẩm của Product Owner thành công", response));
+    }
 
     @PostMapping
     @Operation(

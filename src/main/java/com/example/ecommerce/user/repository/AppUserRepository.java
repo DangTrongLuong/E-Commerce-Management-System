@@ -6,6 +6,7 @@ import com.example.ecommerce.user.enums.UserStatus;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 
+import java.util.List;
 import java.util.Optional;
 
 @Repository
@@ -18,4 +19,6 @@ public interface AppUserRepository extends JpaRepository<AppUser, Long> {
     long countByRoleAndStatus(Role role, UserStatus status);
 
     Optional<AppUser> findByCustomerId(Long customerId);
+
+    List<AppUser> findByRole(Role role);
 }
