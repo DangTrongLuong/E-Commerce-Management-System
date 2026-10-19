@@ -119,7 +119,8 @@ public class OrderService {
         securityUtils.verifyUserOrAdmin(Long.valueOf(targetCustomerId));
 
         Customer customer = customerRepository.findById(targetCustomerId)
-                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy khách hàng với mã ID: " + targetCustomerId));
+                .orElseThrow(() -> new ResourceNotFoundException(
+                        "Không tìm thấy khách hàng với mã ID: " + targetCustomerId));
 
         if (customer.getStatus() != CustomerStatus.ACTIVE) {
             throw new BadRequestExeption("Tài khoản khách hàng đang ở trạng thái ngưng hoạt động");
@@ -175,7 +176,7 @@ public class OrderService {
             }
         }
 
-        // 2. Tạo ĐÚNG 1 BẢN GHI ĐƠN HÀNG DUY NHẤT trong bảng orders (đảm bảo ID tăng tuần tự 210, 211...)
+        // 2. Tạo bản ghi trong bảng orders
         Order order = Order.builder()
                 .customer(customer)
                 .status(OrderStatus.PENDING)
@@ -261,7 +262,8 @@ public class OrderService {
                     .fromStatus(ticketStatus)
                     .toStatus(ticketStatus)
                     .actor(requester)
-                    .comment("Sub-order " + subOrderCode + " created for PO #" + (poOwner != null ? poOwner.getId() : "N/A"))
+                    .comment("Sub-order " + subOrderCode + " created for PO #"
+                            + (poOwner != null ? poOwner.getId() : "N/A"))
                     .build();
             ticket.addHistory(createHistory);
 
@@ -295,7 +297,8 @@ public class OrderService {
     // =========================================================================
 
     @Transactional(rollbackFor = Exception.class)
-    public OrderCheckoutResponse checkoutOrder(Integer id, String idempotencyKey, String bankCode, HttpServletRequest request) {
+    public OrderCheckoutResponse checkoutOrder(Integer id, String idempotencyKey, String bankCode,
+            HttpServletRequest request) {
         if (idempotencyKey == null || idempotencyKey.trim().isEmpty()) {
             throw new IdempotencyKeyRequiredException("Header Idempotency-Key là bắt buộc khi checkout");
         }
@@ -306,14 +309,16 @@ public class OrderService {
             IdempotencyRecord record = recordOpt.get();
             if (!record.getOrderId().equals(id)) {
                 throw new IdempotencyKeyReusedException(
-                        "Khóa Idempotency-Key '" + idempotencyKey + "' đã được sử dụng cho đơn hàng khác #" + record.getOrderId());
+                        "Khóa Idempotency-Key '" + idempotencyKey + "' đã được sử dụng cho đơn hàng khác #"
+                                + record.getOrderId());
             }
 
             // Cùng key, cùng orderId -> Kiểm tra hạn 24 giờ
             LocalDateTime cutoff24h = LocalDateTime.now().minusHours(24);
             if (record.getCreatedAt().isAfter(cutoff24h)) {
                 try {
-                    log.info("Idempotent hit cho đơn hàng #{}, key {}. Trả về kết quả checkout trước đó.", id, idempotencyKey);
+                    log.info("Idempotent hit cho đơn hàng #{}, key {}. Trả về kết quả checkout trước đó.", id,
+                            idempotencyKey);
                     return objectMapper.readValue(record.getResponseJson(), OrderCheckoutResponse.class);
                 } catch (Exception e) {
                     log.error("Lỗi parse responseJson từ IdempotencyRecord cho key {}", idempotencyKey, e);
@@ -329,7 +334,9 @@ public class OrderService {
 
         if (order.getStatus() != OrderStatus.PENDING && order.getStatus() != OrderStatus.AWAITING_PAYMENT) {
             throw new OrderNotCheckoutableException(
-                    "Đơn hàng #" + order.getId() + " không ở trạng thái được phép checkout (chỉ cho phép khi PENDING hoặc AWAITING_PAYMENT). Trạng thái hiện tại: " + order.getStatus());
+                    "Đơn hàng #" + order.getId()
+                            + " không ở trạng thái được phép checkout (chỉ cho phép khi PENDING hoặc AWAITING_PAYMENT). Trạng thái hiện tại: "
+                            + order.getStatus());
         }
 
         // Phân biệt: Có kiện hàng (SubOrders) hay Đơn độc lập
@@ -343,10 +350,12 @@ public class OrderService {
 
             if (unpaidSubOrders.isEmpty()) {
                 throw new OrderNotCheckoutableException(
-                        "Tất cả các kiện hàng thuộc đơn tổng #" + order.getId() + " đều đã được thanh toán hoặc đã bị hủy.");
+                        "Tất cả các kiện hàng thuộc đơn tổng #" + order.getId()
+                                + " đều đã được thanh toán hoặc đã bị hủy.");
             }
 
-            // Quy tắc: Khách chỉ có thể thanh toán 1 lần tổng các đơn nếu như các đơn đó ĐỀU ĐÃ ĐƯỢC DUYỆT!
+            // Quy tắc: Khách chỉ có thể thanh toán 1 lần tổng các đơn nếu như các đơn đó
+            // ĐỀU ĐÃ ĐƯỢC DUYỆT!
             for (SubOrder sub : unpaidSubOrders) {
                 PurchaseTicket subTicket = sub.getTicket();
                 if (subTicket == null) {
@@ -354,7 +363,8 @@ public class OrderService {
                 }
                 if (subTicket != null && subTicket.getStatus() != TicketStatus.APPROVED) {
                     throw new OrderNotCheckoutableException(
-                            "Không thể thanh toán gộp đơn hàng #" + order.getId() + ": Kiện hàng " + sub.getSubOrderCode()
+                            "Không thể thanh toán gộp đơn hàng #" + order.getId() + ": Kiện hàng "
+                                    + sub.getSubOrderCode()
                                     + " chưa được phê duyệt vé mua hàng (Trạng thái vé: " + subTicket.getStatus()
                                     + "). Bạn có thể thanh toán riêng các kiện hàng đã duyệt trước hoặc chờ tất cả PO duyệt xong!");
                 }
@@ -371,7 +381,8 @@ public class OrderService {
             String changedBy = currentUser != null ? currentUser.getEmail() : "USER";
             for (SubOrder sub : unpaidSubOrders) {
                 if (sub.getStatus() == OrderStatus.PENDING) {
-                    stateMachine.transitionSubOrder(sub, OrderStatus.AWAITING_PAYMENT, changedBy, "Parent order checkout initiated");
+                    stateMachine.transitionSubOrder(sub, OrderStatus.AWAITING_PAYMENT, changedBy,
+                            "Parent order checkout initiated");
                     subOrderRepository.save(sub);
                 }
             }
@@ -381,11 +392,13 @@ public class OrderService {
             if (ticketOpt.isPresent() && ticketOpt.get().getStatus() != TicketStatus.APPROVED) {
                 throw new OrderNotCheckoutableException(
                         "Đơn hàng #" + order.getId() + " chưa được phê duyệt vé mua hàng (Trạng thái vé: "
-                                + ticketOpt.get().getStatus() + "). Vui lòng chờ Người kiểm duyệt duyệt đơn trước khi thanh toán!");
+                                + ticketOpt.get().getStatus()
+                                + "). Vui lòng chờ Người kiểm duyệt duyệt đơn trước khi thanh toán!");
             }
         }
 
-        // 3. Tạo URL thanh toán VNPay (VnPayService sẽ chuyển order sang AWAITING_PAYMENT & tạo PaymentTransaction)
+        // 3. Tạo URL thanh toán VNPay (VnPayService sẽ chuyển order sang
+        // AWAITING_PAYMENT & tạo PaymentTransaction)
         PaymentCreationRequest paymentRequest = PaymentCreationRequest.builder()
                 .orderId(order.getId())
                 .bankCode(bankCode)
@@ -419,7 +432,8 @@ public class OrderService {
     }
 
     @Transactional(rollbackFor = Exception.class)
-    public OrderCheckoutResponse checkoutSubOrder(Integer orderId, Long subOrderId, String idempotencyKey, String bankCode, HttpServletRequest request) {
+    public OrderCheckoutResponse checkoutSubOrder(Integer orderId, Long subOrderId, String idempotencyKey,
+            String bankCode, HttpServletRequest request) {
         if (idempotencyKey == null || idempotencyKey.trim().isEmpty()) {
             throw new IdempotencyKeyRequiredException("Header Idempotency-Key là bắt buộc khi checkout");
         }
@@ -430,13 +444,16 @@ public class OrderService {
             IdempotencyRecord record = recordOpt.get();
             if (!record.getOrderId().equals(orderId)) {
                 throw new IdempotencyKeyReusedException(
-                        "Khóa Idempotency-Key '" + idempotencyKey + "' đã được sử dụng cho đơn hàng khác #" + record.getOrderId());
+                        "Khóa Idempotency-Key '" + idempotencyKey + "' đã được sử dụng cho đơn hàng khác #"
+                                + record.getOrderId());
             }
 
             LocalDateTime cutoff24h = LocalDateTime.now().minusHours(24);
             if (record.getCreatedAt().isAfter(cutoff24h)) {
                 try {
-                    log.info("Idempotent hit cho đơn hàng #{}, kiện hàng #{}, key {}. Trả về kết quả checkout trước đó.", orderId, subOrderId, idempotencyKey);
+                    log.info(
+                            "Idempotent hit cho đơn hàng #{}, kiện hàng #{}, key {}. Trả về kết quả checkout trước đó.",
+                            orderId, subOrderId, idempotencyKey);
                     return objectMapper.readValue(record.getResponseJson(), OrderCheckoutResponse.class);
                 } catch (Exception e) {
                     log.error("Lỗi parse responseJson từ IdempotencyRecord cho key {}", idempotencyKey, e);
@@ -451,14 +468,17 @@ public class OrderService {
         securityUtils.verifyUserOrAdmin(Long.valueOf(order.getCustomer().getId()));
 
         SubOrder subOrder = subOrderRepository.findByOrderIdAndId(orderId, subOrderId)
-                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy kiện hàng #" + subOrderId + " trong đơn hàng #" + orderId));
+                .orElseThrow(() -> new ResourceNotFoundException(
+                        "Không tìm thấy kiện hàng #" + subOrderId + " trong đơn hàng #" + orderId));
 
         if (subOrder.getPaymentStatus() == OrderPaymentStatus.PAID) {
-            throw new OrderNotCheckoutableException("Kiện hàng " + subOrder.getSubOrderCode() + " đã được thanh toán trước đó.");
+            throw new OrderNotCheckoutableException(
+                    "Kiện hàng " + subOrder.getSubOrderCode() + " đã được thanh toán trước đó.");
         }
 
         if (subOrder.getStatus() != OrderStatus.PENDING && subOrder.getStatus() != OrderStatus.AWAITING_PAYMENT) {
-            throw new OrderNotCheckoutableException("Kiện hàng " + subOrder.getSubOrderCode() + " không ở trạng thái được phép thanh toán. Trạng thái hiện tại: " + subOrder.getStatus());
+            throw new OrderNotCheckoutableException("Kiện hàng " + subOrder.getSubOrderCode()
+                    + " không ở trạng thái được phép thanh toán. Trạng thái hiện tại: " + subOrder.getStatus());
         }
 
         // Kiểm tra vé phê duyệt (PurchaseTicket) của kiện hàng
@@ -467,8 +487,9 @@ public class OrderService {
             ticket = ticketRepository.findBySubOrderId(subOrderId).orElse(null);
         }
         if (ticket != null && ticket.getStatus() != TicketStatus.APPROVED) {
-            throw new OrderNotCheckoutableException("Kiện hàng " + subOrder.getSubOrderCode() + " chưa được duyệt vé mua hàng (Trạng thái vé: "
-                    + ticket.getStatus() + "). Vui lòng chờ người bán duyệt trước khi thanh toán!");
+            throw new OrderNotCheckoutableException(
+                    "Kiện hàng " + subOrder.getSubOrderCode() + " chưa được duyệt vé mua hàng (Trạng thái vé: "
+                            + ticket.getStatus() + "). Vui lòng chờ người bán duyệt trước khi thanh toán!");
         }
 
         // 3. Tạo URL thanh toán VNPay cho kiện hàng lẻ
@@ -501,7 +522,8 @@ public class OrderService {
                     .build();
             idempotencyRecordRepository.save(newRecord);
         } catch (Exception e) {
-            log.error("Không thể serialize OrderCheckoutResponse để lưu IdempotencyRecord cho key {}", idempotencyKey, e);
+            log.error("Không thể serialize OrderCheckoutResponse để lưu IdempotencyRecord cho key {}", idempotencyKey,
+                    e);
         }
 
         return checkoutResponse;
@@ -510,12 +532,6 @@ public class OrderService {
     // =========================================================================
     // 2. CHỈNH SỬA SẢN PHẨM TRONG ĐƠN HÀNG (REQ-01 ITEM MANAGEMENT)
     // =========================================================================
-
-    /**
-     * @param orderId
-     * @param request
-     * @return
-     */
     @Transactional(rollbackFor = Exception.class)
     public OrderResponse addItemToOrder(Integer orderId, OrderItemRequest request) {
         Order order = findOrderByIdOrThrow(orderId);
@@ -687,8 +703,7 @@ public class OrderService {
             specification = specification.and(
                     (root, query, cb) -> cb.and(
                             cb.equal(root.get("customer").get("Id"), currentUser.getCustomer().getId()),
-                            cb.isNull(root.get("parentOrder"))
-                    ));
+                            cb.isNull(root.get("parentOrder"))));
         } else if (currentUser.getRole() == Role.PRODUCT_OWNER) {
             specification = specification.and((root, query, cb) -> {
                 query.distinct(true);
@@ -714,8 +729,7 @@ public class OrderService {
 
         Specification<Order> specification = (root, query, cb) -> cb.and(
                 cb.equal(root.get("customer").get("Id"), customerId),
-                cb.isNull(root.get("parentOrder"))
-        );
+                cb.isNull(root.get("parentOrder")));
         if (status != null) {
             specification = specification.and((root, query, cb) -> cb.equal(root.get("status"), status));
         }
@@ -747,13 +761,15 @@ public class OrderService {
             return orderMapper.toResponse(orderRepository.save(order));
         }
 
-        if ((currentStatus == OrderStatus.CONFIRMED || currentStatus == OrderStatus.PROCESSING) && newStatus == OrderStatus.COMPLETED) {
+        if ((currentStatus == OrderStatus.CONFIRMED || currentStatus == OrderStatus.PROCESSING)
+                && newStatus == OrderStatus.COMPLETED) {
             stateMachine.transition(order, OrderStatus.COMPLETED, currentUser.getEmail(), "Hoàn tất đơn hàng");
             return orderMapper.toResponse(orderRepository.save(order));
         }
 
-        throw new InvalidOrderStatusException("Không thể chuyển trạng thái đơn hàng từ " + currentStatus + " sang " + newStatus
-                + " qua API này.");
+        throw new InvalidOrderStatusException(
+                "Không thể chuyển trạng thái đơn hàng từ " + currentStatus + " sang " + newStatus
+                        + " qua API này.");
     }
 
     @Transactional(rollbackFor = Exception.class)
@@ -1038,24 +1054,19 @@ public class OrderService {
             OrderStatus.PAID,
             OrderStatus.CONFIRMED,
             OrderStatus.PROCESSING,
-            OrderStatus.COMPLETED
-    );
+            OrderStatus.COMPLETED);
 
     @Transactional(readOnly = true)
     public OrderTotalAmountResponse getTotalOrderAmountForAdmin(OrderStatus status) {
         return getTotalOrderAmountForAdmin(status, null);
     }
 
-    /**
-     * REQ: API tính doanh thu hôm nay của toàn hệ thống (Dành riêng cho ADMIN).
-     * Mặc định lấy ngày hiện tại (LocalDate.now()), FE gọi không cần truyền tham số ngày.
-     * Kiểm tra phân quyền chặt chẽ: Chỉ người dùng có vai trò ADMIN mới được phép truy cập.
-     */
     @Transactional(readOnly = true)
     public OrderTotalAmountResponse getTotalOrderAmountForAdmin(OrderStatus status, LocalDate date) {
         AppUser currentUser = securityUtils.getCurrentUser();
         if (currentUser.getRole() != Role.ADMIN) {
-            throw new AccessDeniedException("Chỉ Quản trị viên (Admin) mới có quyền xem tổng tiền của toàn bộ hệ thống");
+            throw new AccessDeniedException(
+                    "Chỉ Quản trị viên (Admin) mới có quyền xem tổng tiền của toàn bộ hệ thống");
         }
 
         LocalDate targetDate = (date != null) ? date : LocalDate.now();
@@ -1086,13 +1097,6 @@ public class OrderService {
         return getTotalOrderAmountForCurrentPo(status, null);
     }
 
-    /**
-     * REQ: API tính doanh thu hôm nay của chính Product Owner đang đăng nhập.
-     * Mặc định lấy ngày hiện tại (LocalDate.now()), FE gọi không cần truyền tham số ngày.
-     * Kiểm tra phân quyền chặt chẽ:
-     * - Chỉ người dùng có vai trò PRODUCT_OWNER mới được phép gọi API.
-     * - Dữ liệu được cô lập tuyệt đối theo PO ID của tài khoản đăng nhập hiện tại.
-     */
     @Transactional(readOnly = true)
     public OrderTotalAmountResponse getTotalOrderAmountForCurrentPo(OrderStatus status, LocalDate date) {
         AppUser currentUser = securityUtils.getCurrentUser();
@@ -1119,8 +1123,10 @@ public class OrderService {
             orderCount = subOrderCount;
             totalAmount = subOrderRepository.sumRevenueByPoOwnerIdAndDate(poId, statuses, startOfDay, endOfDay);
         } else {
-            // Fallback sang order_items cho các đơn hàng cũ hoặc direct orders chưa có sub_order
-            orderCount = orderRepository.countRevenueOrdersByProductOwnerIdAndDate(poId, statuses, startOfDay, endOfDay);
+            // Fallback sang order_items cho các đơn hàng cũ hoặc direct orders chưa có
+            // sub_order
+            orderCount = orderRepository.countRevenueOrdersByProductOwnerIdAndDate(poId, statuses, startOfDay,
+                    endOfDay);
             totalAmount = orderRepository.sumRevenueByProductOwnerIdAndDate(poId, statuses, startOfDay, endOfDay);
         }
 
@@ -1136,4 +1142,3 @@ public class OrderService {
                 .build();
     }
 }
-

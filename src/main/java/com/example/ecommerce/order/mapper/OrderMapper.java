@@ -17,6 +17,8 @@ import java.util.List;
 public interface OrderMapper {
     @Mapping(target = "customerId", source = "customer.id")
     @Mapping(target = "customerName", source = "customer.name")
+    @Mapping(target = "customerEmail", source = "customer.email")
+    @Mapping(target = "customerPhone", source = "customer.phone")
     @Mapping(target = "items", source = "orderItems")
     @Mapping(target = "parentId", source = "parentOrder.id")
     @Mapping(target = "subOrders", source = "subOrders")

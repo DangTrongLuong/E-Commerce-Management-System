@@ -19,6 +19,8 @@ public class OrderResponse {
     private int id;
     private int customerId;
     private String customerName;
+    private String customerEmail;
+    private String customerPhone;
     private List<OrderItemResponse> items;
     private BigDecimal totalAmount;
     private OrderStatus status;
