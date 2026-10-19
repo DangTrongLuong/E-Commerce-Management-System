@@ -16,32 +16,39 @@ import java.util.Optional;
 @Repository
 public interface PurchaseTicketRepository extends JpaRepository<PurchaseTicket, Long> {
 
-    @EntityGraph(attributePaths = { "order", "order.orderItems", "order.customer", "requester", "approver" })
+    @EntityGraph(attributePaths = { "order", "subOrder", "order.customer", "requester", "approver" })
     Optional<PurchaseTicket> findById(Long id);
 
-    @EntityGraph(attributePaths = { "order", "order.customer", "requester", "approver" })
+    @EntityGraph(attributePaths = { "order", "subOrder", "order.customer", "requester", "approver" })
     Optional<PurchaseTicket> findByOrderId(Long orderId);
 
-    @EntityGraph(attributePaths = { "order", "order.customer", "requester", "approver" })
+    @EntityGraph(attributePaths = { "order", "subOrder", "order.customer", "requester", "approver" })
+    List<PurchaseTicket> findAllByOrderId(Long orderId);
+
+    @EntityGraph(attributePaths = { "order", "subOrder", "order.customer", "requester", "approver" })
+    Optional<PurchaseTicket> findBySubOrderId(Long subOrderId);
+
+    @EntityGraph(attributePaths = { "order", "subOrder", "order.customer", "requester", "approver" })
     Page<PurchaseTicket> findByRequesterId(Long requesterId, Pageable pageable);
 
-    @EntityGraph(attributePaths = { "order", "order.customer", "requester", "approver" })
+    @EntityGraph(attributePaths = { "order", "subOrder", "order.customer", "requester", "approver" })
     Page<PurchaseTicket> findByRequesterIdAndStatus(Long requesterId, TicketStatus status, Pageable pageable);
 
-    @EntityGraph(attributePaths = { "order", "order.customer", "requester", "approver" })
+    @EntityGraph(attributePaths = { "order", "subOrder", "order.customer", "requester", "approver" })
     Page<PurchaseTicket> findByApproverId(Long approverId, Pageable pageable);
 
-    @EntityGraph(attributePaths = { "order", "order.customer", "requester", "approver" })
+    @EntityGraph(attributePaths = { "order", "subOrder", "order.customer", "requester", "approver" })
     Page<PurchaseTicket> findByApproverIdAndStatus(Long approverId, TicketStatus status, Pageable pageable);
 
-    @EntityGraph(attributePaths = { "order", "order.customer", "requester", "approver" })
+    @EntityGraph(attributePaths = { "order", "subOrder", "order.customer", "requester", "approver" })
     Page<PurchaseTicket> findByApproverIdAndStatusIn(Long approverId, Collection<TicketStatus> statuses, Pageable pageable);
 
-    @EntityGraph(attributePaths = { "order", "order.customer", "requester", "approver" })
+    @EntityGraph(attributePaths = { "order", "subOrder", "order.customer", "requester", "approver" })
     Page<PurchaseTicket> findByStatus(TicketStatus status, Pageable pageable);
 
-    @EntityGraph(attributePaths = { "order", "order.customer", "requester", "approver" })
+    @EntityGraph(attributePaths = { "order", "subOrder", "order.customer", "requester", "approver" })
     Page<PurchaseTicket> findByStatusIn(Collection<TicketStatus> statuses, Pageable pageable);
 
+    @EntityGraph(attributePaths = { "order", "subOrder", "order.customer", "requester", "approver" })
     List<PurchaseTicket> findByStatusInAndDueAtBefore(Collection<TicketStatus> statuses, LocalDateTime dueAt);
 }

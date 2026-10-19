@@ -19,13 +19,21 @@ import java.util.List;
 @NoArgsConstructor
 @AllArgsConstructor
 @Table(name = "orders")
-@ToString(exclude = { "customer", "orderItems" })
-@EqualsAndHashCode(exclude = { "customer", "orderItems" })
+@ToString(exclude = { "customer", "orderItems", "parentOrder", "subOrders" })
+@EqualsAndHashCode(exclude = { "customer", "orderItems", "parentOrder", "subOrders" })
 public class Order {
     // id, customer_id, total_amount, status, created_at, updated_at
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private int Id;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "parent_id", foreignKey = @ForeignKey(name = "fk_orders_parent_order"))
+    private Order parentOrder;
+
+    @OneToMany(mappedBy = "order", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
+    @Builder.Default
+    private List<SubOrder> subOrders = new ArrayList<>();
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "customer_id", nullable = false, foreignKey = @ForeignKey(name = "fk_order_customer"))

@@ -149,19 +149,28 @@ public class EmailOutboxService {
         String formattedPaidAt = paidAt.format(DATE_TIME_FORMATTER);
 
         List<Map<String, Object>> itemsList = new ArrayList<>();
-        if (order.getOrderItems() != null) {
-            for (OrderItem item : order.getOrderItems()) {
-                Map<String, Object> itemMap = new HashMap<>();
-                String pName = item.getProduct() != null ? item.getProduct().getName() : "Sản phẩm";
-                BigDecimal uPrice = item.getUnitPrice() != null ? item.getUnitPrice() : BigDecimal.ZERO;
-                BigDecimal sTotal = item.getSubTotal() != null ? item.getSubTotal() : uPrice.multiply(BigDecimal.valueOf(item.getQuantity()));
-
-                itemMap.put("productName", pName);
-                itemMap.put("quantity", item.getQuantity());
-                itemMap.put("unitPriceFormatted", formatCurrency(uPrice));
-                itemMap.put("subtotalFormatted", formatCurrency(sTotal));
-                itemsList.add(itemMap);
+        List<OrderItem> allItems = new ArrayList<>();
+        if (order.getOrderItems() != null && !order.getOrderItems().isEmpty()) {
+            allItems.addAll(order.getOrderItems());
+        } else if (order.getSubOrders() != null) {
+            for (com.example.ecommerce.order.entity.SubOrder sub : order.getSubOrders()) {
+                if (sub.getOrderItems() != null) {
+                    allItems.addAll(sub.getOrderItems());
+                }
             }
+        }
+
+        for (OrderItem item : allItems) {
+            Map<String, Object> itemMap = new HashMap<>();
+            String pName = item.getProduct() != null ? item.getProduct().getName() : "Sản phẩm";
+            BigDecimal uPrice = item.getUnitPrice() != null ? item.getUnitPrice() : BigDecimal.ZERO;
+            BigDecimal sTotal = item.getSubTotal() != null ? item.getSubTotal() : uPrice.multiply(BigDecimal.valueOf(item.getQuantity()));
+
+            itemMap.put("productName", pName);
+            itemMap.put("quantity", item.getQuantity());
+            itemMap.put("unitPriceFormatted", formatCurrency(uPrice));
+            itemMap.put("subtotalFormatted", formatCurrency(sTotal));
+            itemsList.add(itemMap);
         }
 
         String formattedTotal = formatCurrency(order.getTotalAmount() != null ? order.getTotalAmount() : BigDecimal.ZERO);

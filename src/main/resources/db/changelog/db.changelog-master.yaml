@@ -69,6 +69,12 @@ databaseChangeLog:
   - include:
       file: changes/026-add-report-param-min-amount.yaml
       relativeToChangelogFile: true
+  - include:
+      file: changes/027-alter-orders-add-parent-id.yaml
+      relativeToChangelogFile: true
+  - include:
+      file: changes/028-create-sub-orders-table.yaml
+      relativeToChangelogFile: true
 #   - include:
 #       file: changes/900-seed-dev-users.yaml
 #       relativeToChangelogFile: true

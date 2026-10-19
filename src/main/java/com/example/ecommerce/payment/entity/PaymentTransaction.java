@@ -33,6 +33,9 @@ public class PaymentTransaction {
         @Column(name = "order_id", nullable = false)
         private Integer orderId;
 
+        @Column(name = "sub_order_id")
+        private Long subOrderId;
+
         @Column(name = "vnp_txn_ref", nullable = false, unique = true, length = 100)
         private String vnpTxnRef;
 

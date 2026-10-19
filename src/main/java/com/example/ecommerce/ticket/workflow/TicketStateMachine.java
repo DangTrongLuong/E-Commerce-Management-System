@@ -4,7 +4,10 @@ import com.example.ecommerce.order.entity.Order;
 import com.example.ecommerce.order.entity.OrderItem;
 import com.example.ecommerce.product.entity.Product;
 import com.example.ecommerce.ticket.entity.PurchaseTicket;
+import com.example.ecommerce.order.entity.SubOrder;
 import com.example.ecommerce.order.enums.OrderStatus;
+import com.example.ecommerce.order.repository.OrderRepository;
+import com.example.ecommerce.order.repository.SubOrderRepository;
 import com.example.ecommerce.ticket.enums.TicketAction;
 import com.example.ecommerce.ticket.enums.TicketStatus;
 import com.example.ecommerce.common.exception.InvalidTicketStatusException;
@@ -14,6 +17,8 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
 
 @Slf4j
 @Component
@@ -21,6 +26,8 @@ import java.time.LocalDateTime;
 public class TicketStateMachine {
 
     private final ProductRepository productRepository;
+    private final SubOrderRepository subOrderRepository;
+    private final OrderRepository orderRepository;
 
     public TicketStatus transition(PurchaseTicket ticket, TicketAction action, String comment) {
         TicketStatus current = ticket.getStatus();
@@ -37,7 +44,7 @@ public class TicketStateMachine {
                         validateComment(comment);
                         nextStatus = TicketStatus.REJECTED;
                         ticket.setDecidedAt(LocalDateTime.now());
-                        cancelOrderAndRefundStock(ticket.getOrder(), "Ticket rejected: " + comment);
+                        cancelOrderAndRefundStock(ticket, "Ticket rejected: " + comment);
                     }
                     case RETURN -> {
                         validateComment(comment);
@@ -46,12 +53,12 @@ public class TicketStateMachine {
                     case CANCEL -> {
                         nextStatus = TicketStatus.CANCELLED;
                         ticket.setDecidedAt(LocalDateTime.now());
-                        cancelOrderAndRefundStock(ticket.getOrder(), "Ticket cancelled by requester");
+                        cancelOrderAndRefundStock(ticket, "Ticket cancelled by requester");
                     }
                     case EXPIRE -> {
                         nextStatus = TicketStatus.EXPIRED;
                         ticket.setDecidedAt(LocalDateTime.now());
-                        cancelOrderAndRefundStock(ticket.getOrder(), "Ticket expired (SLA exceeded)");
+                        cancelOrderAndRefundStock(ticket, "Ticket expired (SLA exceeded)");
                     }
                     default -> throw new InvalidTicketStatusException(
                             "Không thể thực hiện hành động " + action + " khi vé phê duyệt đang ở trạng thái " + current);
@@ -68,7 +75,7 @@ public class TicketStateMachine {
                         validateComment(comment);
                         nextStatus = TicketStatus.REJECTED;
                         ticket.setDecidedAt(LocalDateTime.now());
-                        cancelOrderAndRefundStock(ticket.getOrder(), "Ticket rejected: " + comment);
+                        cancelOrderAndRefundStock(ticket, "Ticket rejected: " + comment);
                     }
                     case RETURN -> {
                         validateComment(comment);
@@ -77,12 +84,12 @@ public class TicketStateMachine {
                     case CANCEL -> {
                         nextStatus = TicketStatus.CANCELLED;
                         ticket.setDecidedAt(LocalDateTime.now());
-                        cancelOrderAndRefundStock(ticket.getOrder(), "Ticket cancelled by requester");
+                        cancelOrderAndRefundStock(ticket, "Ticket cancelled by requester");
                     }
                     case EXPIRE -> {
                         nextStatus = TicketStatus.EXPIRED;
                         ticket.setDecidedAt(LocalDateTime.now());
-                        cancelOrderAndRefundStock(ticket.getOrder(), "Ticket expired (SLA exceeded)");
+                        cancelOrderAndRefundStock(ticket, "Ticket expired (SLA exceeded)");
                     }
                     default -> throw new InvalidTicketStatusException(
                             "Không thể thực hiện hành động " + action + " khi vé phê duyệt đang ở trạng thái " + current);
@@ -105,7 +112,7 @@ public class TicketStateMachine {
                         validateComment(comment);
                         nextStatus = TicketStatus.REJECTED;
                         ticket.setDecidedAt(LocalDateTime.now());
-                        cancelOrderAndRefundStock(ticket.getOrder(), "Ticket rejected: " + comment);
+                        cancelOrderAndRefundStock(ticket, "Ticket rejected: " + comment);
                     }
                     case RETURN -> {
                         validateComment(comment);
@@ -114,12 +121,12 @@ public class TicketStateMachine {
                     case CANCEL -> {
                         nextStatus = TicketStatus.CANCELLED;
                         ticket.setDecidedAt(LocalDateTime.now());
-                        cancelOrderAndRefundStock(ticket.getOrder(), "Ticket cancelled by requester");
+                        cancelOrderAndRefundStock(ticket, "Ticket cancelled by requester");
                     }
                     case EXPIRE -> {
                         nextStatus = TicketStatus.EXPIRED;
                         ticket.setDecidedAt(LocalDateTime.now());
-                        cancelOrderAndRefundStock(ticket.getOrder(), "Ticket expired (SLA exceeded)");
+                        cancelOrderAndRefundStock(ticket, "Ticket expired (SLA exceeded)");
                     }
                     default -> throw new InvalidTicketStatusException(
                             "Không thể thực hiện hành động " + action + " khi vé phê duyệt đang ở trạng thái " + current);
@@ -141,12 +148,12 @@ public class TicketStateMachine {
                     case CANCEL -> {
                         nextStatus = TicketStatus.CANCELLED;
                         ticket.setDecidedAt(LocalDateTime.now());
-                        cancelOrderAndRefundStock(ticket.getOrder(), "Ticket cancelled by requester");
+                        cancelOrderAndRefundStock(ticket, "Ticket cancelled by requester");
                     }
                     case EXPIRE -> {
                         nextStatus = TicketStatus.EXPIRED;
                         ticket.setDecidedAt(LocalDateTime.now());
-                        cancelOrderAndRefundStock(ticket.getOrder(), "Ticket expired (SLA exceeded)");
+                        cancelOrderAndRefundStock(ticket, "Ticket expired (SLA exceeded)");
                     }
                     default -> throw new InvalidTicketStatusException(
                             "Không thể thực hiện hành động " + action + " khi vé phê duyệt đang ở trạng thái " + current);
@@ -167,13 +174,62 @@ public class TicketStateMachine {
         }
     }
 
-    private void cancelOrderAndRefundStock(Order order, String reason) {
-        if (order.getStatus() != OrderStatus.CANCELLED) {
-            order.setStatus(OrderStatus.CANCELLED);
-            order.setCancelReason(reason);
-            for (OrderItem item : order.getOrderItems()) {
-                productRepository.increaseStockAtomic(item.getProduct().getId(), item.getQuantity());
+    private void cancelOrderAndRefundStock(PurchaseTicket ticket, String reason) {
+        if (ticket == null) return;
+
+        Long subOrderId = ticket.getSubOrder() != null ? ticket.getSubOrder().getId() : null;
+        Integer orderId = ticket.getOrder() != null ? ticket.getOrder().getId() : null;
+
+        if (subOrderId != null) {
+            subOrderRepository.findById(subOrderId).ifPresent(subOrder -> {
+                if (subOrder.getStatus() != OrderStatus.CANCELLED) {
+                    subOrder.setStatus(OrderStatus.CANCELLED);
+                    List<int[]> refunds = new ArrayList<>();
+                    if (subOrder.getOrderItems() != null) {
+                        for (OrderItem item : subOrder.getOrderItems()) {
+                            refunds.add(new int[]{item.getProduct().getId(), item.getQuantity()});
+                        }
+                    }
+                    subOrderRepository.save(subOrder);
+
+                    for (int[] refund : refunds) {
+                        productRepository.increaseStockAtomic(refund[0], refund[1]);
+                    }
+                }
+            });
+
+            if (orderId != null) {
+                List<SubOrder> allSubOrders = subOrderRepository.findByOrderId(orderId);
+                boolean allCancelled = !allSubOrders.isEmpty() && allSubOrders.stream()
+                        .allMatch(s -> s.getStatus() == OrderStatus.CANCELLED);
+                if (allCancelled) {
+                    orderRepository.findById(orderId).ifPresent(order -> {
+                        if (order.getStatus() != OrderStatus.CANCELLED) {
+                            order.setStatus(OrderStatus.CANCELLED);
+                            order.setCancelReason(reason);
+                            orderRepository.save(order);
+                        }
+                    });
+                }
             }
+        } else if (orderId != null) {
+            orderRepository.findById(orderId).ifPresent(order -> {
+                if (order.getStatus() != OrderStatus.CANCELLED) {
+                    order.setStatus(OrderStatus.CANCELLED);
+                    order.setCancelReason(reason);
+                    List<int[]> refunds = new ArrayList<>();
+                    if (order.getOrderItems() != null) {
+                        for (OrderItem item : order.getOrderItems()) {
+                            refunds.add(new int[]{item.getProduct().getId(), item.getQuantity()});
+                        }
+                    }
+                    orderRepository.save(order);
+
+                    for (int[] refund : refunds) {
+                        productRepository.increaseStockAtomic(refund[0], refund[1]);
+                    }
+                }
+            });
         }
     }
 }

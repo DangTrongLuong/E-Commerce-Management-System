@@ -12,13 +12,19 @@ import com.example.ecommerce.customer.entity.Customer;
 import com.example.ecommerce.customer.enums.CustomerStatus;
 import com.example.ecommerce.customer.repository.CustomerRepository;
 import com.example.ecommerce.notification.repository.NotificationRepository;
+import com.example.ecommerce.order.dto.OrderCheckoutResponse;
 import com.example.ecommerce.order.dto.OrderCreationRequest;
 import com.example.ecommerce.order.dto.OrderItemRequest;
 import com.example.ecommerce.order.dto.OrderResponse;
 import com.example.ecommerce.order.entity.Order;
+import com.example.ecommerce.order.entity.SubOrder;
 import com.example.ecommerce.order.enums.OrderStatus;
 import com.example.ecommerce.order.repository.OrderRepository;
+import com.example.ecommerce.order.repository.SubOrderRepository;
 import com.example.ecommerce.order.service.OrderService;
+import com.example.ecommerce.order.service.OrderStatusStateMachine;
+import com.example.ecommerce.payment.repository.PaymentTransactionRepository;
+import com.example.ecommerce.common.exception.OrderNotCheckoutableException;
 import com.example.ecommerce.product.entity.Product;
 import com.example.ecommerce.product.enums.ProductStatus;
 import com.example.ecommerce.product.repository.ProductRepository;
@@ -70,6 +76,7 @@ class WorkflowIntegrationTest {
     @Autowired private OrderService orderService;
     @Autowired private TicketService ticketService;
     @Autowired private TicketSlaScheduler ticketSlaScheduler;
+    @Autowired private OrderStatusStateMachine orderStatusStateMachine;
     @org.springframework.boot.test.mock.mockito.MockBean private com.example.ecommerce.notification.service.EmailService emailService;
     @org.springframework.boot.test.mock.mockito.MockBean private net.javacrumbs.shedlock.core.LockProvider lockProvider;
 
@@ -81,6 +88,8 @@ class WorkflowIntegrationTest {
     @Autowired private TicketHistoryRepository historyRepository;
     @Autowired private NotificationRepository notificationRepository;
     @Autowired private OrderRepository orderRepository;
+    @Autowired private SubOrderRepository subOrderRepository;
+    @Autowired private PaymentTransactionRepository paymentTransactionRepository;
 
     private AppUser adminUser;
     private AppUser poUser;
@@ -146,7 +155,8 @@ class WorkflowIntegrationTest {
         notificationRepository.deleteAll();
         historyRepository.deleteAll();
         ticketRepository.deleteAll();
-        // Order items are cascade-deleted with orders via orphanRemoval
+        paymentTransactionRepository.deleteAll();
+        // Order items and sub-orders are cascade-deleted with orders via orphanRemoval
         orderRepository.deleteAll();
         userRepository.deleteAll();
         productRepository.deleteAll();
@@ -435,5 +445,130 @@ class WorkflowIntegrationTest {
         assertThat(ticketAfterDelete.getStatus()).isEqualTo(TicketStatus.APPROVED);
         assertThat(ticketAfterDelete.getRequiredLevel()).isEqualTo(0);
         assertThat(ticketAfterDelete.getCurrentLevel()).isEqualTo(0);
+    }
+
+    // -------------------------------------------------------------------------
+    // Multi-PO Order: Sequential order IDs, Sub-orders with code .1/.2, and conditional checkout
+    // -------------------------------------------------------------------------
+
+    @Test
+    @DisplayName("Multi-PO Order: Sequential order IDs, Sub-orders with code .1/.2, and conditional checkout")
+    void testMultiPoOrderSequentialIdAndConditionalCheckout() {
+        // 1. Setup a second PO and their product
+        AppUser poUser2 = userRepository.save(AppUser.builder()
+                .email("po2_test@example.com")
+                .passwordHash("password_hash")
+                .role(Role.PRODUCT_OWNER)
+                .status(UserStatus.ACTIVE)
+                .build());
+
+        Product product2 = productRepository.save(Product.builder()
+                .name("Test Monitor PO2")
+                .price(new BigDecimal("2000000.00"))
+                .stock(10)
+                .status(ProductStatus.ACTIVE)
+                .owner(poUser2)
+                .build());
+
+        authenticateAs(customerUser);
+
+        // 2. Customer creates an order containing items from 2 different POs
+        OrderCreationRequest multiPoReq = OrderCreationRequest.builder()
+                .customerId(customer.getId())
+                .items(List.of(
+                        OrderItemRequest.builder().productId(product1.getId()).quantity(1).build(), // PO 1: 1M
+                        OrderItemRequest.builder().productId(product2.getId()).quantity(1).build()  // PO 2: 2M
+                ))
+                .build();
+
+        OrderResponse orderRes1 = orderService.createOrder(multiPoReq);
+        Integer order1Id = orderRes1.getId();
+
+        // Verify: exactly 1 order row in orders table
+        assertThat(orderRes1.getSubOrders()).hasSize(2);
+        List<SubOrder> subOrders1 = subOrderRepository.findByOrderId(order1Id);
+        assertThat(subOrders1).hasSize(2);
+        assertThat(subOrders1).extracting(SubOrder::getSubOrderCode)
+                .containsExactlyInAnyOrder(order1Id + ".1", order1Id + ".2");
+
+        // 3. Customer creates a second order immediately after
+        OrderCreationRequest nextOrderReq = OrderCreationRequest.builder()
+                .customerId(customer.getId())
+                .items(List.of(
+                        OrderItemRequest.builder().productId(product1.getId()).quantity(1).build()
+                ))
+                .build();
+
+        OrderResponse orderRes2 = orderService.createOrder(nextOrderReq);
+        Integer order2Id = orderRes2.getId();
+
+        // VERIFY STRICT SEQUENTIAL ORDER ID: order2Id == order1Id + 1 (no gaps caused by child orders!)
+        assertThat(order2Id).isEqualTo(order1Id + 1);
+
+        // 4. Verify Payment Rules on Order 1
+        // Both PO sub-orders are >= 500k, so their tickets are PENDING_APPROVAL
+        SubOrder subOrder1 = subOrders1.stream()
+                .filter(s -> s.getPoOwner().getId().equals(poUser.getId()))
+                .findFirst().orElseThrow();
+        SubOrder subOrder2 = subOrders1.stream()
+                .filter(s -> s.getPoOwner().getId().equals(poUser2.getId()))
+                .findFirst().orElseThrow();
+
+        PurchaseTicket ticketSub1 = ticketRepository.findBySubOrderId(subOrder1.getId()).orElseThrow();
+        PurchaseTicket ticketSub2 = ticketRepository.findBySubOrderId(subOrder2.getId()).orElseThrow();
+        assertThat(ticketSub1.getStatus()).isEqualTo(TicketStatus.PENDING_APPROVAL);
+        assertThat(ticketSub2.getStatus()).isEqualTo(TicketStatus.PENDING_APPROVAL);
+
+        org.springframework.mock.web.MockHttpServletRequest httpReq = new org.springframework.mock.web.MockHttpServletRequest();
+        httpReq.setRemoteAddr("127.0.0.1");
+
+        // A) Customer attempts full checkout -> MUST FAIL because tickets are not approved
+        assertThatThrownBy(() -> orderService.checkoutOrder(order1Id, "idem-full-fail", null, httpReq))
+                .isInstanceOf(OrderNotCheckoutableException.class)
+                .hasMessageContaining("chưa được phê duyệt vé mua hàng");
+
+        // B) Customer attempts checkout for subOrder1 individually -> MUST FAIL because ticketSub1 is not approved
+        assertThatThrownBy(() -> orderService.checkoutSubOrder(order1Id, subOrder1.getId(), "idem-sub1-fail", null, httpReq))
+                .isInstanceOf(OrderNotCheckoutableException.class);
+
+        // C) PO 1 approves ticket for subOrder1
+        authenticateAs(poUser);
+        ticketService.approveTicket(ticketSub1.getId(), TicketActionRequest.builder().comment("PO 1 approved for production").build());
+        PurchaseTicket approvedTicket1 = ticketRepository.findById(ticketSub1.getId()).orElseThrow();
+        assertThat(approvedTicket1.getStatus()).isEqualTo(TicketStatus.APPROVED);
+
+        // D) Customer attempts full checkout again -> STILL FAILS because subOrder2 is still pending!
+        authenticateAs(customerUser);
+        assertThatThrownBy(() -> orderService.checkoutOrder(order1Id, "idem-full-still-fail", null, httpReq))
+                .isInstanceOf(OrderNotCheckoutableException.class)
+                .hasMessageContaining(subOrder2.getSubOrderCode());
+
+        // E) Customer checks out subOrder1 individually -> SUCCEEDS!
+        OrderCheckoutResponse checkoutSub1 = orderService.checkoutSubOrder(order1Id, subOrder1.getId(), "idem-sub1-ok", null, httpReq);
+        assertThat(checkoutSub1.getPaymentUrl()).isNotBlank();
+        assertThat(checkoutSub1.getSubOrderId()).isEqualTo(subOrder1.getId());
+        assertThat(checkoutSub1.getSubOrderCode()).isEqualTo(subOrder1.getSubOrderCode());
+
+        SubOrder updatedSub1 = subOrderRepository.findById(subOrder1.getId()).orElseThrow();
+        assertThat(updatedSub1.getStatus()).isEqualTo(OrderStatus.AWAITING_PAYMENT);
+
+        // F) PO 2 approves ticket for subOrder2
+        authenticateAs(poUser2);
+        ticketService.approveTicket(ticketSub2.getId(), TicketActionRequest.builder().comment("PO 2 approved for shipment").build());
+
+        // G) Customer checks out subOrder2 individually -> SUCCEEDS!
+        authenticateAs(customerUser);
+        OrderCheckoutResponse checkoutSub2 = orderService.checkoutSubOrder(order1Id, subOrder2.getId(), "idem-sub2-ok", null, httpReq);
+        assertThat(checkoutSub2.getPaymentUrl()).isNotBlank();
+        assertThat(checkoutSub2.getSubOrderId()).isEqualTo(subOrder2.getId());
+
+        // H) Simulate payment completion: when both sub-orders are PAID, master Order ascends to PAID!
+        orderStatusStateMachine.transitionSubOrder(updatedSub1, OrderStatus.PAID, "SYSTEM", "Payment completed via VNPay");
+        SubOrder updatedSub2 = subOrderRepository.findById(subOrder2.getId()).orElseThrow();
+        orderStatusStateMachine.transitionSubOrder(updatedSub2, OrderStatus.PAID, "SYSTEM", "Payment completed via VNPay");
+
+        Order finalMasterOrder = orderRepository.findById(order1Id).orElseThrow();
+        assertThat(finalMasterOrder.getStatus()).isEqualTo(OrderStatus.PAID);
+        assertThat(finalMasterOrder.getPaymentStatus()).isEqualTo(com.example.ecommerce.order.enums.OrderPaymentStatus.PAID);
     }
 }

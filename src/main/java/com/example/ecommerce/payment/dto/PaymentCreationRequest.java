@@ -14,6 +14,8 @@ public class PaymentCreationRequest{
         @NotNull(message = "Mã đơn hàng không được để trống")
         private Integer orderId;
 
+        private Long subOrderId;
+
         private String bankCode;
         private String locale;
 

@@ -19,6 +19,8 @@ import com.example.ecommerce.common.exception.InvalidVnPaySignatureException;
 import com.example.ecommerce.common.exception.OrderNotCheckoutableException;
 import com.example.ecommerce.common.exception.ResourceNotFoundException;
 import com.example.ecommerce.order.entity.OrderItem;
+import com.example.ecommerce.order.entity.SubOrder;
+import com.example.ecommerce.order.repository.SubOrderRepository;
 import com.example.ecommerce.order.service.OrderStatusStateMachine;
 import com.example.ecommerce.product.repository.ProductRepository;
 import com.example.ecommerce.payment.mapper.PaymentMapper;
@@ -51,6 +53,7 @@ public class VnPayService {
     VnPayProperties vnPayProperties;
     PaymentTransactionRepository paymentRepository;
     OrderRepository orderRepository;
+    SubOrderRepository subOrderRepository;
     ProductRepository productRepository;
     PurchaseTicketRepository ticketRepository;
     OrderStatusStateMachine stateMachine;
@@ -67,32 +70,107 @@ public class VnPayService {
 
         securityUtils.verifyUserOrAdmin(Long.valueOf(order.getCustomer().getId()));
 
-        // Kiểm tra vé phê duyệt (PurchaseTicket) nếu có
-        Optional<PurchaseTicket> ticketOpt = ticketRepository.findByOrderId(Long.valueOf(order.getId()));
-        if (ticketOpt.isPresent() && ticketOpt.get().getStatus() != TicketStatus.APPROVED) {
-            throw new OrderNotCheckoutableException(
-                    "Đơn hàng #" + order.getId() + " chưa được phê duyệt vé mua hàng (Trạng thái vé: "
-                            + ticketOpt.get().getStatus() + "). Vui lòng chờ Người kiểm duyệt duyệt đơn trước khi thanh toán!");
+        SubOrder targetSubOrder = null;
+        if (paymentCreationRequest.getSubOrderId() != null) {
+            targetSubOrder = subOrderRepository.findByOrderIdAndId(order.getId(), paymentCreationRequest.getSubOrderId())
+                    .orElseThrow(() -> new ResourceNotFoundException(
+                            "Không tìm thấy kiện hàng #" + paymentCreationRequest.getSubOrderId() + " trong đơn hàng #" + order.getId()));
+
+            if (targetSubOrder.getPaymentStatus() == OrderPaymentStatus.PAID) {
+                throw new OrderNotCheckoutableException("Kiện hàng " + targetSubOrder.getSubOrderCode() + " đã được thanh toán trước đó.");
+            }
+
+            PurchaseTicket subTicket = targetSubOrder.getTicket();
+            if (subTicket == null) {
+                subTicket = ticketRepository.findBySubOrderId(targetSubOrder.getId()).orElse(null);
+            }
+            if (subTicket != null && subTicket.getStatus() != TicketStatus.APPROVED) {
+                throw new OrderNotCheckoutableException(
+                        "Kiện hàng " + targetSubOrder.getSubOrderCode() + " chưa được phê duyệt vé mua hàng (Trạng thái vé: "
+                                + subTicket.getStatus() + "). Vui lòng chờ Người kiểm duyệt duyệt đơn trước khi thanh toán!");
+            }
+
+            if (targetSubOrder.getStatus() == OrderStatus.PENDING) {
+                AppUser currentUser = securityUtils.getCurrentUser();
+                stateMachine.transitionSubOrder(targetSubOrder, OrderStatus.AWAITING_PAYMENT,
+                        currentUser != null ? currentUser.getEmail() : "USER", "Initiated sub-order payment");
+                subOrderRepository.save(targetSubOrder);
+            }
+            if (order.getStatus() == OrderStatus.PENDING) {
+                order.setStatus(OrderStatus.AWAITING_PAYMENT);
+                orderRepository.save(order);
+            }
+        } else {
+            // Thanh toán đơn tổng
+            boolean hasSubOrders = (order.getSubOrders() != null && !order.getSubOrders().isEmpty());
+            if (hasSubOrders) {
+                List<SubOrder> unpaidSubOrders = order.getSubOrders().stream()
+                        .filter(s -> s.getStatus() == OrderStatus.PENDING || s.getStatus() == OrderStatus.AWAITING_PAYMENT)
+                        .toList();
+
+                if (unpaidSubOrders.isEmpty()) {
+                    throw new OrderNotCheckoutableException(
+                            "Tất cả các kiện hàng thuộc đơn tổng #" + order.getId() + " đều đã được thanh toán hoặc đã bị hủy.");
+                }
+
+                for (SubOrder sub : unpaidSubOrders) {
+                    PurchaseTicket subTicket = sub.getTicket();
+                    if (subTicket == null) {
+                        subTicket = ticketRepository.findBySubOrderId(sub.getId()).orElse(null);
+                    }
+                    if (subTicket != null && subTicket.getStatus() != TicketStatus.APPROVED) {
+                        throw new OrderNotCheckoutableException(
+                                "Không thể thanh toán gộp đơn hàng #" + order.getId() + ": Kiện hàng " + sub.getSubOrderCode()
+                                        + " chưa được phê duyệt vé mua hàng (Trạng thái vé: " + subTicket.getStatus()
+                                        + "). Bạn có thể thanh toán riêng các kiện hàng đã duyệt trước hoặc chờ tất cả PO duyệt xong!");
+                    }
+                }
+
+                BigDecimal amountToPay = unpaidSubOrders.stream()
+                        .map(SubOrder::getTotalAmount)
+                        .reduce(BigDecimal.ZERO, BigDecimal::add);
+                order.setTotalAmount(amountToPay);
+
+                AppUser currentUser = securityUtils.getCurrentUser();
+                String changedBy = currentUser != null ? currentUser.getEmail() : "USER";
+                for (SubOrder sub : unpaidSubOrders) {
+                    if (sub.getStatus() == OrderStatus.PENDING) {
+                        stateMachine.transitionSubOrder(sub, OrderStatus.AWAITING_PAYMENT, changedBy, "Initiated full payment");
+                        subOrderRepository.save(sub);
+                    }
+                }
+            } else {
+                Optional<PurchaseTicket> ticketOpt = ticketRepository.findByOrderId(Long.valueOf(order.getId()));
+                if (ticketOpt.isPresent() && ticketOpt.get().getStatus() != TicketStatus.APPROVED) {
+                    throw new OrderNotCheckoutableException(
+                            "Đơn hàng #" + order.getId() + " chưa được phê duyệt vé mua hàng (Trạng thái vé: "
+                                    + ticketOpt.get().getStatus() + "). Vui lòng chờ Người kiểm duyệt duyệt đơn trước khi thanh toán!");
+                }
+            }
+
+            if (order.getStatus() == OrderStatus.PENDING) {
+                AppUser currentUser = securityUtils.getCurrentUser();
+                stateMachine.transition(order, OrderStatus.AWAITING_PAYMENT, currentUser != null ? currentUser.getEmail() : "USER", "Initiated payment checkout");
+                orderRepository.save(order);
+            } else if (order.getStatus() != OrderStatus.AWAITING_PAYMENT) {
+                throw new OrderNotCheckoutableException(
+                        "Đơn hàng #" + order.getId() + " không ở trạng thái được phép thanh toán. Trạng thái hiện tại: " + order.getStatus());
+            }
         }
 
-        if (order.getStatus() == OrderStatus.PENDING) {
-            AppUser currentUser = securityUtils.getCurrentUser();
-            stateMachine.transition(order, OrderStatus.AWAITING_PAYMENT, currentUser != null ? currentUser.getEmail() : "USER", "Initiated payment checkout");
-            orderRepository.save(order);
-        } else if (order.getStatus() != OrderStatus.AWAITING_PAYMENT) {
-            throw new OrderNotCheckoutableException(
-                    "Đơn hàng #" + order.getId() + " không ở trạng thái được phép thanh toán. Trạng thái hiện tại: " + order.getStatus());
-        }
-
+        BigDecimal payAmount = targetSubOrder != null ? targetSubOrder.getTotalAmount() : order.getTotalAmount();
         String txnRef = buildTxnRef(order.getId());
         String createDate = VnPayUtils.now();
         String expireDate = VnPayUtils.plusMinutes((vnPayProperties.getExpireMinutes()));
-        String orderInfo = "Thanh toan don hang #" + order.getId();
+        String orderInfo = targetSubOrder != null
+                ? "Thanh toan kien hang " + targetSubOrder.getSubOrderCode()
+                : "Thanh toan don hang #" + order.getId();
 
         PaymentTransaction paymentTransaction = PaymentTransaction.builder()
                 .orderId(order.getId())
+                .subOrderId(targetSubOrder != null ? targetSubOrder.getId() : null)
                 .vnpTxnRef(txnRef)
-                .amount(order.getTotalAmount())
+                .amount(payAmount)
                 .bankCode(paymentCreationRequest.getBankCode())
                 .orderInfo(orderInfo)
                 .ipAddress(VnPayUtils.getClientIpAddress(httpServletRequest))
@@ -106,7 +184,7 @@ public class VnPayService {
         params.put("vnp_Version", vnPayProperties.getApiVersion());
         params.put("vnp_Command", vnPayProperties.getCommand());
         params.put("vnp_TmnCode", vnPayProperties.getTmnCode());
-        params.put("vnp_Amount", order.getTotalAmount()
+        params.put("vnp_Amount", payAmount
                 .multiply(BigDecimal.valueOf(100))
                 .setScale(0, RoundingMode.UNNECESSARY)
                 .toBigInteger().toString());
@@ -140,7 +218,7 @@ public class VnPayService {
                 .paymentId(paymentTransaction.getId())
                 .paymentUrl(paymentUrl)
                 .txnRef(txnRef)
-                .amount(order.getTotalAmount())
+                .amount(payAmount)
                 .expireAt(expireAt)
                 .build();
 
@@ -193,44 +271,10 @@ public class VnPayService {
                 .orElseThrow(
                         () -> new ResourceNotFoundException("Không tìm thấy đơn hàng với mã ID: " + paymentTransaction.getOrderId()));
 
-        if (isSuccess) {
-            if (order.getStatus() == OrderStatus.CANCELLED) {
-                // CANCELLED | callback SUCCESS | CANCELLED (không đổi) | PAYMENT -> REFUND_REQUIRED; log WARN
-                paymentTransaction.setStatus(PaymentStatus.REFUND_REQUIRED);
-                paymentRepository.save(paymentTransaction);
-                log.warn("Đơn hàng #{} đã bị hủy (CANCELLED) nhưng nhận được thanh toán thành công từ VNPay (txnRef={}). Chuyển giao dịch sang REFUND_REQUIRED.",
-                        order.getId(), txnRef);
-            } else if (order.getStatus() == OrderStatus.PAID) {
-                // PAID | callback lặp lại | PAID (không đổi) | Không ghi history
-                paymentTransaction.setStatus(PaymentStatus.SUCCESS);
-                paymentRepository.save(paymentTransaction);
-                log.info("Đơn hàng #{} đã ở trạng thái PAID. Giao dịch VNPay lặp lại hợp lệ (txnRef={}).", order.getId(), txnRef);
-            } else {
-                paymentTransaction.setStatus(PaymentStatus.SUCCESS);
-                paymentRepository.save(paymentTransaction);
-                order.setPaymentStatus(OrderPaymentStatus.PAID);
-                stateMachine.transition(order, OrderStatus.PAID, "VNPAY", "IPN Payment Successful");
-                orderRepository.save(order);
-            }
-        } else {
-            paymentTransaction.setStatus(PaymentStatus.FAILED);
-            paymentRepository.save(paymentTransaction);
-            order.setPaymentStatus(OrderPaymentStatus.FAILED);
-            if (order.getStatus() == OrderStatus.AWAITING_PAYMENT || order.getStatus() == OrderStatus.PENDING) {
-                stateMachine.transition(order, OrderStatus.CANCELLED, "VNPAY", "IPN Payment Failed");
-                // Hoàn lại tồn kho cho từng sản phẩm
-                for (OrderItem item : order.getOrderItems()) {
-                    if (item.getProduct() != null) {
-                        productRepository.increaseStockAtomic(item.getProduct().getId(), item.getQuantity());
-                        log.info("Hoàn tồn kho sản phẩm #{}: +{}", item.getProduct().getId(), item.getQuantity());
-                    }
-                }
-                orderRepository.save(order);
-            }
-        }
+        applyPaymentOutcome(paymentTransaction, order, isSuccess, txnRef, "IPN");
 
-        log.info("VNPay IPN processed. txnRef={}, orderId={}, status={}",
-                txnRef, paymentTransaction.getOrderId(), paymentTransaction.getStatus());
+        log.info("VNPay IPN processed. txnRef={}, orderId={}, subOrderId={}, status={}",
+                txnRef, paymentTransaction.getOrderId(), paymentTransaction.getSubOrderId(), paymentTransaction.getStatus());
 
         return VnPayIpnResponse.success();
     }
@@ -264,38 +308,7 @@ public class VnPayService {
 
             Order order = orderRepository.findById(paymentTransaction.getOrderId()).orElse(null);
             if (order != null) {
-                if (isSuccess) {
-                    if (order.getStatus() == OrderStatus.CANCELLED) {
-                        paymentTransaction.setStatus(PaymentStatus.REFUND_REQUIRED);
-                        paymentRepository.save(paymentTransaction);
-                        log.warn("Đơn hàng #{} đã bị hủy (CANCELLED) nhưng nhận được thanh toán thành công từ VNPay (txnRef={}). Chuyển giao dịch sang REFUND_REQUIRED.",
-                                order.getId(), txnRef);
-                    } else if (order.getStatus() == OrderStatus.PAID) {
-                        paymentTransaction.setStatus(PaymentStatus.SUCCESS);
-                        paymentRepository.save(paymentTransaction);
-                        log.info("Đơn hàng #{} đã ở trạng thái PAID. Giao dịch VNPay lặp lại hợp lệ (txnRef={}).", order.getId(), txnRef);
-                    } else {
-                        paymentTransaction.setStatus(PaymentStatus.SUCCESS);
-                        paymentRepository.save(paymentTransaction);
-                        order.setPaymentStatus(OrderPaymentStatus.PAID);
-                        stateMachine.transition(order, OrderStatus.PAID, "VNPAY", "Return URL Payment Successful");
-                        orderRepository.save(order);
-                    }
-                } else {
-                    paymentTransaction.setStatus(PaymentStatus.FAILED);
-                    paymentRepository.save(paymentTransaction);
-                    order.setPaymentStatus(OrderPaymentStatus.FAILED);
-                    if (order.getStatus() == OrderStatus.AWAITING_PAYMENT || order.getStatus() == OrderStatus.PENDING) {
-                        stateMachine.transition(order, OrderStatus.CANCELLED, "VNPAY", "Return URL Payment Failed");
-                        for (OrderItem item : order.getOrderItems()) {
-                            if (item.getProduct() != null) {
-                                productRepository.increaseStockAtomic(item.getProduct().getId(), item.getQuantity());
-                                log.info("Hoàn tồn kho sản phẩm #{}: +{}", item.getProduct().getId(), item.getQuantity());
-                            }
-                        }
-                        orderRepository.save(order);
-                    }
-                }
+                applyPaymentOutcome(paymentTransaction, order, isSuccess, txnRef, "Return URL");
             } else {
                 paymentTransaction.setStatus(isSuccess ? PaymentStatus.SUCCESS : PaymentStatus.FAILED);
                 paymentRepository.save(paymentTransaction);
@@ -313,6 +326,65 @@ public class VnPayService {
                 .message(message)
                 .amount(paymentTransaction.getAmount())
                 .build();
+    }
+
+    private void applyPaymentOutcome(PaymentTransaction paymentTransaction, Order order, boolean isSuccess, String txnRef, String context) {
+        if (isSuccess) {
+            paymentTransaction.setStatus(PaymentStatus.SUCCESS);
+            paymentRepository.save(paymentTransaction);
+
+            if (paymentTransaction.getSubOrderId() != null) {
+                Optional<SubOrder> subOpt = subOrderRepository.findById(paymentTransaction.getSubOrderId());
+                if (subOpt.isPresent()) {
+                    SubOrder sub = subOpt.get();
+                    stateMachine.transitionSubOrder(sub, OrderStatus.PAID, "VNPAY", context + " Payment Successful");
+                    subOrderRepository.save(sub);
+                    log.info("SubOrder #{} paid successfully via VNPay (txnRef={})", sub.getSubOrderCode(), txnRef);
+                }
+            } else {
+                if (order.getStatus() == OrderStatus.CANCELLED) {
+                    paymentTransaction.setStatus(PaymentStatus.REFUND_REQUIRED);
+                    paymentRepository.save(paymentTransaction);
+                    log.warn("Đơn hàng #{} đã bị hủy (CANCELLED) nhưng nhận được thanh toán thành công từ VNPay (txnRef={}). Chuyển giao dịch sang REFUND_REQUIRED.",
+                            order.getId(), txnRef);
+                } else if (order.getStatus() == OrderStatus.PAID) {
+                    log.info("Đơn hàng #{} đã ở trạng thái PAID. Giao dịch VNPay lặp lại hợp lệ (txnRef={}).", order.getId(), txnRef);
+                } else {
+                    order.setPaymentStatus(OrderPaymentStatus.PAID);
+                    stateMachine.transition(order, OrderStatus.PAID, "VNPAY", context + " Payment Successful");
+                    orderRepository.save(order);
+                }
+            }
+        } else {
+            paymentTransaction.setStatus(PaymentStatus.FAILED);
+            paymentRepository.save(paymentTransaction);
+
+            if (paymentTransaction.getSubOrderId() != null) {
+                Optional<SubOrder> subOpt = subOrderRepository.findById(paymentTransaction.getSubOrderId());
+                if (subOpt.isPresent()) {
+                    SubOrder sub = subOpt.get();
+                    sub.setPaymentStatus(OrderPaymentStatus.FAILED);
+                    stateMachine.transitionSubOrder(sub, OrderStatus.CANCELLED, "VNPAY", context + " Payment Failed");
+                    for (OrderItem item : sub.getOrderItems()) {
+                        if (item.getProduct() != null) {
+                            productRepository.increaseStockAtomic(item.getProduct().getId(), item.getQuantity());
+                        }
+                    }
+                    subOrderRepository.save(sub);
+                }
+            } else {
+                order.setPaymentStatus(OrderPaymentStatus.FAILED);
+                if (order.getStatus() == OrderStatus.AWAITING_PAYMENT || order.getStatus() == OrderStatus.PENDING) {
+                    stateMachine.transition(order, OrderStatus.CANCELLED, "VNPAY", context + " Payment Failed");
+                    for (OrderItem item : order.getOrderItems()) {
+                        if (item.getProduct() != null) {
+                            productRepository.increaseStockAtomic(item.getProduct().getId(), item.getQuantity());
+                        }
+                    }
+                    orderRepository.save(order);
+                }
+            }
+        }
     }
 
     @Transactional(readOnly = true)

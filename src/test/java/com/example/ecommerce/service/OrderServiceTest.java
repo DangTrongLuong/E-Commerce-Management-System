@@ -37,19 +37,31 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyList;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
+
+import com.example.ecommerce.order.entity.SubOrder;
+import com.example.ecommerce.order.repository.SubOrderRepository;
+import com.example.ecommerce.order.repository.OrderRepository;
+import com.example.ecommerce.order.dto.OrderTotalAmountResponse;
+import org.springframework.security.access.AccessDeniedException;
 
 @ExtendWith(MockitoExtension.class)
 class OrderServiceTest {
 
     @Mock
     private OrderRepository orderRepository;
+
+    @Mock
+    private SubOrderRepository subOrderRepository;
 
     @Mock
     private CustomerRepository customerRepository;
@@ -146,6 +158,7 @@ class OrderServiceTest {
             when(productRepository.findAllById(any())).thenReturn(List.of(sampleProduct));
             when(productRepository.decreaseStockAtomic(eq(101), anyInt())).thenReturn(1);
             when(orderRepository.save(any(Order.class))).thenReturn(savedOrder);
+            when(subOrderRepository.save(any(SubOrder.class))).thenAnswer(invocation -> invocation.getArgument(0));
             when(ticketRepository.saveAndFlush(any(PurchaseTicket.class))).thenAnswer(invocation -> invocation.getArgument(0));
             when(securityUtils.getCurrentUser()).thenReturn(sampleUser);
             when(orderMapper.toResponse(any(Order.class))).thenReturn(expectedResponse);
@@ -201,4 +214,125 @@ class OrderServiceTest {
             verify(orderRepository, never()).save(any());
         }
     }
+
+    @Nested
+    @DisplayName("Tests for getTotalOrderAmountForAdmin & getTotalOrderAmountForCurrentPo (Today Revenue)")
+    class TotalOrderAmountTests {
+
+        @Test
+        @DisplayName("ADMIN: Tính doanh thu hôm nay của toàn hệ thống thành công (không truyền status/date)")
+        void admin_getTotalOrderAmount_Success_AllStatus() {
+            AppUser admin = AppUser.builder().id(99L).email("admin@shop.com").role(Role.ADMIN).build();
+            when(securityUtils.getCurrentUser()).thenReturn(admin);
+            when(orderRepository.sumRevenueByStatusesAndDate(anyList(), any(), any())).thenReturn(new BigDecimal("5000000.00"));
+            when(orderRepository.countRevenueByStatusesAndDate(anyList(), any(), any())).thenReturn(10L);
+
+            OrderTotalAmountResponse res = orderService.getTotalOrderAmountForAdmin(null);
+
+            assertThat(res).isNotNull();
+            assertThat(res.getTotalAmount()).isEqualByComparingTo("5000000.00");
+            assertThat(res.getOrderCount()).isEqualTo(10L);
+            assertThat(res.getDate()).isEqualTo(LocalDate.now());
+            assertThat(res.getScope()).isEqualTo("ALL_SYSTEM");
+            assertThat(res.getStatus()).isNull();
+            assertThat(res.getCurrency()).isEqualTo("VND");
+        }
+
+        @Test
+        @DisplayName("ADMIN: Tính doanh thu hôm nay có lọc status thành công")
+        void admin_getTotalOrderAmount_Success_WithStatus() {
+            AppUser admin = AppUser.builder().id(99L).email("admin@shop.com").role(Role.ADMIN).build();
+            when(securityUtils.getCurrentUser()).thenReturn(admin);
+            when(orderRepository.sumRevenueByStatusesAndDate(eq(List.of(OrderStatus.PAID)), any(), any()))
+                    .thenReturn(new BigDecimal("3000000.00"));
+            when(orderRepository.countRevenueByStatusesAndDate(eq(List.of(OrderStatus.PAID)), any(), any()))
+                    .thenReturn(6L);
+
+            OrderTotalAmountResponse res = orderService.getTotalOrderAmountForAdmin(OrderStatus.PAID);
+
+            assertThat(res).isNotNull();
+            assertThat(res.getTotalAmount()).isEqualByComparingTo("3000000.00");
+            assertThat(res.getOrderCount()).isEqualTo(6L);
+            assertThat(res.getDate()).isEqualTo(LocalDate.now());
+            assertThat(res.getStatus()).isEqualTo(OrderStatus.PAID);
+        }
+
+        @Test
+        @DisplayName("ADMIN: Người dùng không phải ADMIN gọi API sẽ bị từ chối với message rõ ràng")
+        void admin_getTotalOrderAmount_ForbiddenForNonAdmin() {
+            AppUser user = AppUser.builder().id(10L).email("user@shop.com").role(Role.USER).build();
+            when(securityUtils.getCurrentUser()).thenReturn(user);
+
+            assertThatThrownBy(() -> orderService.getTotalOrderAmountForAdmin(null))
+                    .isInstanceOf(AccessDeniedException.class)
+                    .hasMessage("Chỉ Quản trị viên (Admin) mới có quyền xem tổng tiền của toàn bộ hệ thống");
+        }
+
+        @Test
+        @DisplayName("PRODUCT_OWNER: Tính doanh thu hôm nay của chính PO thành công từ sub_orders")
+        void po_getTotalOrderAmount_Success_FromSubOrders() {
+            AppUser po = AppUser.builder().id(5L).email("po5@shop.com").role(Role.PRODUCT_OWNER).build();
+            when(securityUtils.getCurrentUser()).thenReturn(po);
+            when(subOrderRepository.countRevenueByPoOwnerIdAndDate(eq(5L), anyList(), any(), any())).thenReturn(4L);
+            when(subOrderRepository.sumRevenueByPoOwnerIdAndDate(eq(5L), anyList(), any(), any())).thenReturn(new BigDecimal("1200000.00"));
+
+            OrderTotalAmountResponse res = orderService.getTotalOrderAmountForCurrentPo(null);
+
+            assertThat(res).isNotNull();
+            assertThat(res.getTotalAmount()).isEqualByComparingTo("1200000.00");
+            assertThat(res.getOrderCount()).isEqualTo(4L);
+            assertThat(res.getDate()).isEqualTo(LocalDate.now());
+            assertThat(res.getScope()).isEqualTo("PRODUCT_OWNER");
+            assertThat(res.getPoId()).isEqualTo(5L);
+            assertThat(res.getPoEmail()).isEqualTo("po5@shop.com");
+        }
+
+        @Test
+        @DisplayName("PRODUCT_OWNER: Tính doanh thu hôm nay của chính PO có lọc status từ sub_orders")
+        void po_getTotalOrderAmount_Success_WithStatus() {
+            AppUser po = AppUser.builder().id(5L).email("po5@shop.com").role(Role.PRODUCT_OWNER).build();
+            when(securityUtils.getCurrentUser()).thenReturn(po);
+            when(subOrderRepository.countRevenueByPoOwnerIdAndDate(eq(5L), eq(List.of(OrderStatus.COMPLETED)), any(), any())).thenReturn(2L);
+            when(subOrderRepository.sumRevenueByPoOwnerIdAndDate(eq(5L), eq(List.of(OrderStatus.COMPLETED)), any(), any()))
+                    .thenReturn(new BigDecimal("800000.00"));
+
+            OrderTotalAmountResponse res = orderService.getTotalOrderAmountForCurrentPo(OrderStatus.COMPLETED);
+
+            assertThat(res).isNotNull();
+            assertThat(res.getTotalAmount()).isEqualByComparingTo("800000.00");
+            assertThat(res.getOrderCount()).isEqualTo(2L);
+            assertThat(res.getDate()).isEqualTo(LocalDate.now());
+            assertThat(res.getStatus()).isEqualTo(OrderStatus.COMPLETED);
+        }
+
+        @Test
+        @DisplayName("PRODUCT_OWNER: Fallback sang order_items nếu chưa có dữ liệu sub_orders")
+        void po_getTotalOrderAmount_FallbackToOrderItems() {
+            AppUser po = AppUser.builder().id(5L).email("po5@shop.com").role(Role.PRODUCT_OWNER).build();
+            when(securityUtils.getCurrentUser()).thenReturn(po);
+            when(subOrderRepository.countRevenueByPoOwnerIdAndDate(eq(5L), anyList(), any(), any())).thenReturn(0L);
+            when(orderRepository.countRevenueOrdersByProductOwnerIdAndDate(eq(5L), anyList(), any(), any())).thenReturn(3L);
+            when(orderRepository.sumRevenueByProductOwnerIdAndDate(eq(5L), anyList(), any(), any())).thenReturn(new BigDecimal("950000.00"));
+
+            OrderTotalAmountResponse res = orderService.getTotalOrderAmountForCurrentPo(null);
+
+            assertThat(res).isNotNull();
+            assertThat(res.getTotalAmount()).isEqualByComparingTo("950000.00");
+            assertThat(res.getOrderCount()).isEqualTo(3L);
+            assertThat(res.getDate()).isEqualTo(LocalDate.now());
+            assertThat(res.getScope()).isEqualTo("PRODUCT_OWNER");
+        }
+
+        @Test
+        @DisplayName("PRODUCT_OWNER: Người dùng không phải PO (USER hoặc ADMIN) gọi API bị từ chối với message rõ ràng")
+        void po_getTotalOrderAmount_ForbiddenForNonPo() {
+            AppUser admin = AppUser.builder().id(99L).email("admin@shop.com").role(Role.ADMIN).build();
+            when(securityUtils.getCurrentUser()).thenReturn(admin);
+
+            assertThatThrownBy(() -> orderService.getTotalOrderAmountForCurrentPo(null))
+                    .isInstanceOf(AccessDeniedException.class)
+                    .hasMessage("Chỉ Product Owner (PO) mới có quyền xem tổng tiền các đơn hàng của mình");
+        }
+    }
 }
+

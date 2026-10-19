@@ -13,8 +13,8 @@ import java.math.BigDecimal;
 @NoArgsConstructor
 @Entity
 @Table(name = "order_items")
-@ToString(exclude = { "order", "product" })
-@EqualsAndHashCode(exclude = { "order", "product" })
+@ToString(exclude = { "order", "product", "subOrder" })
+@EqualsAndHashCode(exclude = { "order", "product", "subOrder" })
 public class OrderItem {
     // id, order_id, product_id, quantity, unit_price, subtotal
     @Id
@@ -24,6 +24,10 @@ public class OrderItem {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "order_id", nullable = false, foreignKey = @ForeignKey(name = "fk_order_item_order"))
     private Order order;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "sub_order_id", foreignKey = @ForeignKey(name = "fk_order_items_sub_order"))
+    private SubOrder subOrder;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "product_id", nullable = false, foreignKey = @ForeignKey(name = "fk_order_item_product"))

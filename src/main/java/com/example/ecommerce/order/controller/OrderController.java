@@ -31,7 +31,11 @@ import com.example.ecommerce.order.service.PdfInvoiceService;
 import com.example.ecommerce.order.dto.OrderRefundActionRequest;
 import com.example.ecommerce.order.dto.OrderRefundRequest;
 import com.example.ecommerce.order.dto.OrderStatusHistoryResponse;
+import com.example.ecommerce.order.dto.OrderTotalAmountResponse;
 import jakarta.servlet.http.HttpServletRequest;
+import org.springframework.format.annotation.DateTimeFormat;
+
+import java.time.LocalDate;
 
 @Slf4j
 @RestController
@@ -78,6 +82,23 @@ public class OrderController {
             HttpServletRequest request) {
         OrderCheckoutResponse response = orderService.checkoutOrder(id, idempotencyKey, bankCode, request);
         return ResponseEntity.ok(ApiResponse.success("Checkout đơn hàng thành công", response));
+    }
+
+    // Checkout từng kiện hàng lẻ đã duyệt (REQ-02 - Sub-Order Checkout)
+    @PostMapping("/{orderId}/sub-orders/{subOrderId}/checkout")
+    @PreAuthorize("isAuthenticated()")
+    @Operation(
+            summary = "Thanh toán riêng từng kiện hàng con (Sub-order) đã được duyệt",
+            description = "Cho phép khách hàng thanh toán sớm từng kiện hàng con của PO đã được phê duyệt vé mua hàng trước mà không cần chờ các PO khác. Quyền truy cập: USER (chủ đơn) hoặc ADMIN."
+    )
+    public ResponseEntity<ApiResponse<OrderCheckoutResponse>> checkoutSubOrder(
+            @PathVariable Integer orderId,
+            @PathVariable Long subOrderId,
+            @RequestHeader(value = "Idempotency-Key", required = false) String idempotencyKey,
+            @RequestParam(required = false) String bankCode,
+            HttpServletRequest request) {
+        OrderCheckoutResponse response = orderService.checkoutSubOrder(orderId, subOrderId, idempotencyKey, bankCode, request);
+        return ResponseEntity.ok(ApiResponse.success("Checkout kiện hàng thành công", response));
     }
 
     // =========================================================================
@@ -155,6 +176,38 @@ public class OrderController {
     public ResponseEntity<ApiResponse<Map<String, Long>>> getOrderStatusCounts() {
         Map<String, Long> counts = orderService.getOrderStatusCounts();
         return ResponseEntity.ok(ApiResponse.success("Lấy số lượng đơn hàng theo trạng thái thành công", counts));
+    }
+
+    // =========================================================================
+    // 3.1. THỐNG KÊ DOANH THU HÔM NAY (TODAY REVENUE STATS)
+    // =========================================================================
+
+    // 1. Tính doanh thu hôm nay của toàn hệ thống (Chỉ ADMIN)
+    @GetMapping("/today-revenue")
+    @PreAuthorize("isAuthenticated()")
+    @Operation(
+            summary = "Tính tổng tiền doanh thu hôm nay của toàn hệ thống (Chỉ ADMIN)",
+            description = "Tính tổng doanh thu và số lượng đơn hàng hôm nay của toàn bộ hệ thống (tất cả các PO). Mặc định tự động lấy ngày hiện tại (LocalDate.now()), FE không cần truyền ngày. Có thể lọc theo trạng thái (status) hoặc ngày (date). Quyền truy cập: Chỉ Quản trị viên (ADMIN)."
+    )
+    public ResponseEntity<ApiResponse<OrderTotalAmountResponse>> getTodayRevenueForAdmin(
+            @RequestParam(required = false) OrderStatus status,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date) {
+        OrderTotalAmountResponse response = orderService.getTotalOrderAmountForAdmin(status, date);
+        return ResponseEntity.ok(ApiResponse.success("Lấy doanh thu hôm nay của toàn hệ thống thành công", response));
+    }
+
+    // 2. Tính doanh thu hôm nay của chính Product Owner đang đăng nhập (Chỉ PRODUCT_OWNER)
+    @GetMapping("/po/today-revenue")
+    @PreAuthorize("isAuthenticated()")
+    @Operation(
+            summary = "Tính tổng tiền doanh thu hôm nay của Product Owner đang đăng nhập",
+            description = "Tính tổng doanh thu và số lượng các kiện hàng hôm nay thuộc sở hữu của chính PO đang đăng nhập. Mặc định tự động lấy ngày hiện tại (LocalDate.now()), FE không cần truyền ngày. Có thể lọc theo trạng thái (status) hoặc ngày (date). Quyền truy cập: Chỉ Product Owner (PRODUCT_OWNER)."
+    )
+    public ResponseEntity<ApiResponse<OrderTotalAmountResponse>> getTodayRevenueForCurrentPo(
+            @RequestParam(required = false) OrderStatus status,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date) {
+        OrderTotalAmountResponse response = orderService.getTotalOrderAmountForCurrentPo(status, date);
+        return ResponseEntity.ok(ApiResponse.success("Lấy doanh thu hôm nay của Product Owner thành công", response));
     }
 
     // Lấy chi tiết đơn hàng theo ID

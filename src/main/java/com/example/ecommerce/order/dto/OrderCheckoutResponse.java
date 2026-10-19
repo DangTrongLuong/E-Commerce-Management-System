@@ -13,6 +13,8 @@ import java.time.LocalDateTime;
 @AllArgsConstructor
 public class OrderCheckoutResponse {
     private Integer orderId;
+    private Long subOrderId;
+    private String subOrderCode;
     private OrderStatus status;
     private Long paymentId;
     private BigDecimal amount;

@@ -23,6 +23,8 @@ public class OrderResponse {
     private BigDecimal totalAmount;
     private OrderStatus status;
     private OrderPaymentStatus paymentStatus;
+    private Integer parentId;
+    private List<SubOrderResponse> subOrders;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
 }

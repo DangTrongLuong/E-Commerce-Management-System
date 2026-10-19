@@ -1,0 +1,28 @@
+databaseChangeLog:
+  - changeSet:
+      id: 027-alter-orders-add-parent-id
+      author: oms
+      failOnError: true
+      changes:
+        - addColumn:
+            tableName: orders
+            columns:
+              - column:
+                  name: parent_id
+                  type: BIGINT
+                  constraints:
+                    nullable: true
+        - addForeignKeyConstraint:
+            baseTableName: orders
+            baseColumnNames: parent_id
+            constraintName: fk_orders_parent_order
+            referencedTableName: orders
+            referencedColumnNames: id
+            onDelete: RESTRICT
+            onUpdate: RESTRICT
+        - createIndex:
+            indexName: idx_orders_parent_id
+            tableName: orders
+            columns:
+              - column:
+                  name: parent_id

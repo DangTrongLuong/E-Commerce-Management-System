@@ -38,6 +38,7 @@ import com.example.ecommerce.common.util.SortUtils;
 import com.example.ecommerce.order.dto.OrderRefundActionRequest;
 import com.example.ecommerce.order.dto.OrderRefundRequest;
 import com.example.ecommerce.order.dto.OrderStatusHistoryResponse;
+import com.example.ecommerce.order.dto.OrderTotalAmountResponse;
 import com.example.ecommerce.order.enums.OrderPaymentStatus;
 import com.example.ecommerce.order.repository.OrderStatusHistoryRepository;
 import com.example.ecommerce.ticket.repository.TicketHistoryRepository;
@@ -46,7 +47,9 @@ import com.example.ecommerce.common.exception.IdempotencyKeyReusedException;
 import com.example.ecommerce.common.exception.OrderNotCheckoutableException;
 import com.example.ecommerce.order.dto.OrderCheckoutResponse;
 import com.example.ecommerce.order.entity.IdempotencyRecord;
+import com.example.ecommerce.order.entity.SubOrder;
 import com.example.ecommerce.order.repository.IdempotencyRecordRepository;
+import com.example.ecommerce.order.repository.SubOrderRepository;
 import com.example.ecommerce.payment.dto.PaymentCreationRequest;
 import com.example.ecommerce.payment.dto.PaymentUrlResponse;
 import com.example.ecommerce.payment.service.VnPayService;
@@ -67,7 +70,9 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.LocalTime;
 import java.util.*;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -79,6 +84,7 @@ import java.util.stream.Collectors;
 public class OrderService {
 
     OrderRepository orderRepository;
+    SubOrderRepository subOrderRepository;
     CustomerRepository customerRepository;
     ProductRepository productRepository;
     PurchaseTicketRepository ticketRepository;
@@ -154,17 +160,48 @@ public class OrderService {
                     .put(product, totalQuantity);
         }
 
-        List<OrderResponse> createdOrderResponses = new ArrayList<>();
         AppUser requester = securityUtils.getCurrentUser();
+
+        // 1. Kiểm tra số lượng tồn kho trước khi tạo đơn
+        for (Map.Entry<AppUser, Map<Product, Integer>> entry : itemsByPoOwner.entrySet()) {
+            for (Map.Entry<Product, Integer> itemEntry : entry.getValue().entrySet()) {
+                Product product = itemEntry.getKey();
+                Integer quantity = itemEntry.getValue();
+                if (product.getStock() < quantity) {
+                    throw new InsufficientStockException(
+                            "Sản phẩm '" + product.getName() + "' không đủ số lượng tồn kho (Hiện có: "
+                                    + product.getStock() + ", Yêu cầu: " + quantity + ")");
+                }
+            }
+        }
+
+        // 2. Tạo ĐÚNG 1 BẢN GHI ĐƠN HÀNG DUY NHẤT trong bảng orders (đảm bảo ID tăng tuần tự 210, 211...)
+        Order order = Order.builder()
+                .customer(customer)
+                .status(OrderStatus.PENDING)
+                .paymentStatus(OrderPaymentStatus.UNPAID)
+                .totalAmount(BigDecimal.ZERO)
+                .build();
+        Order savedOrder = orderRepository.save(order);
+
+        BigDecimal grandTotal = BigDecimal.ZERO;
+        List<SubOrder> subOrdersList = new ArrayList<>();
+        int subOrderIndex = 1;
 
         for (Map.Entry<AppUser, Map<Product, Integer>> entry : itemsByPoOwner.entrySet()) {
             AppUser poOwner = entry.getKey();
             Map<Product, Integer> poProductQuantityMap = entry.getValue();
 
-            Order order = Order.builder()
-                    .customer(customer)
+            // Mã kiện hàng con dạng 210.1, 210.2... lưu trong bảng sub_orders
+            String subOrderCode = savedOrder.getId() + "." + subOrderIndex++;
+            SubOrder subOrder = SubOrder.builder()
+                    .order(savedOrder)
+                    .subOrderCode(subOrderCode)
+                    .poOwner(poOwner)
                     .status(OrderStatus.PENDING)
+                    .paymentStatus(OrderPaymentStatus.UNPAID)
                     .build();
+            SubOrder savedSubOrder = subOrderRepository.save(subOrder);
 
             for (Map.Entry<Product, Integer> itemEntry : poProductQuantityMap.entrySet()) {
                 Product product = itemEntry.getKey();
@@ -182,7 +219,8 @@ public class OrderService {
                         .unitPrice(product.getPrice())
                         .build();
                 orderItem.caculateSubtotal();
-                order.addItems(orderItem);
+                savedOrder.addItems(orderItem);
+                savedSubOrder.addOrderItem(orderItem);
 
                 int updateStock = productRepository.decreaseStockAtomic(product.getId(), quantity);
                 if (updateStock == 0) {
@@ -192,20 +230,22 @@ public class OrderService {
                 }
             }
 
-            order.recaculateTotalAmount();
-            Order savedOrder = orderRepository.save(order);
+            savedSubOrder.recalculateTotalAmount();
+            savedSubOrder = subOrderRepository.save(savedSubOrder);
+            subOrdersList.add(savedSubOrder);
 
-            BigDecimal total = savedOrder.getTotalAmount();
+            BigDecimal subTotal = savedSubOrder.getTotalAmount();
             int requiredLevel = 1;
             TicketStatus ticketStatus = TicketStatus.PENDING_APPROVAL;
 
-            if (total.compareTo(new BigDecimal("500000")) < 0) {
+            if (subTotal.compareTo(new BigDecimal("500000")) < 0) {
                 requiredLevel = 0;
                 ticketStatus = TicketStatus.APPROVED;
             }
 
             PurchaseTicket ticket = PurchaseTicket.builder()
                     .order(savedOrder)
+                    .subOrder(savedSubOrder)
                     .requester(requester)
                     .approver(poOwner)
                     .status(ticketStatus)
@@ -221,18 +261,27 @@ public class OrderService {
                     .fromStatus(ticketStatus)
                     .toStatus(ticketStatus)
                     .actor(requester)
-                    .comment("Sub-order created for PO #" + (poOwner != null ? poOwner.getId() : "N/A"))
+                    .comment("Sub-order " + subOrderCode + " created for PO #" + (poOwner != null ? poOwner.getId() : "N/A"))
                     .build();
             ticket.addHistory(createHistory);
 
             PurchaseTicket savedTicket = ticketRepository.saveAndFlush(ticket);
-            log.info("Created order {} with ticket {} for PO #{}", savedOrder.getId(), savedTicket.getId(),
-                    poOwner != null ? poOwner.getId() : "N/A");
+            savedSubOrder.setTicket(savedTicket);
 
-            createdOrderResponses.add(orderMapper.toResponse(savedOrder));
+            log.info("Created sub-order {} (code {}) with ticket {} for PO #{}", savedSubOrder.getId(),
+                    subOrderCode, savedTicket.getId(), poOwner != null ? poOwner.getId() : "N/A");
+
+            grandTotal = grandTotal.add(subTotal);
         }
 
-        return createdOrderResponses;
+        savedOrder.setTotalAmount(grandTotal);
+        savedOrder.setSubOrders(subOrdersList);
+        Order finalOrder = orderRepository.save(savedOrder);
+
+        log.info("Created order #{} with {} sub-orders for total: {}",
+                finalOrder.getId(), subOrdersList.size(), grandTotal);
+
+        return List.of(orderMapper.toResponse(finalOrder));
     }
 
     @Transactional(rollbackFor = Exception.class)
@@ -283,12 +332,57 @@ public class OrderService {
                     "Đơn hàng #" + order.getId() + " không ở trạng thái được phép checkout (chỉ cho phép khi PENDING hoặc AWAITING_PAYMENT). Trạng thái hiện tại: " + order.getStatus());
         }
 
-        // Kiểm tra vé phê duyệt (PurchaseTicket) nếu có
-        Optional<PurchaseTicket> ticketOpt = ticketRepository.findByOrderId(Long.valueOf(order.getId()));
-        if (ticketOpt.isPresent() && ticketOpt.get().getStatus() != TicketStatus.APPROVED) {
-            throw new OrderNotCheckoutableException(
-                    "Đơn hàng #" + order.getId() + " chưa được phê duyệt vé mua hàng (Trạng thái vé: "
-                            + ticketOpt.get().getStatus() + "). Vui lòng chờ Người kiểm duyệt duyệt đơn trước khi thanh toán!");
+        // Phân biệt: Có kiện hàng (SubOrders) hay Đơn độc lập
+        boolean hasSubOrders = (order.getSubOrders() != null && !order.getSubOrders().isEmpty());
+
+        if (hasSubOrders) {
+            // THANH TOÁN GỘP: Kiểm tra các kiện hàng chưa thanh toán
+            List<SubOrder> unpaidSubOrders = order.getSubOrders().stream()
+                    .filter(s -> s.getStatus() == OrderStatus.PENDING || s.getStatus() == OrderStatus.AWAITING_PAYMENT)
+                    .toList();
+
+            if (unpaidSubOrders.isEmpty()) {
+                throw new OrderNotCheckoutableException(
+                        "Tất cả các kiện hàng thuộc đơn tổng #" + order.getId() + " đều đã được thanh toán hoặc đã bị hủy.");
+            }
+
+            // Quy tắc: Khách chỉ có thể thanh toán 1 lần tổng các đơn nếu như các đơn đó ĐỀU ĐÃ ĐƯỢC DUYỆT!
+            for (SubOrder sub : unpaidSubOrders) {
+                PurchaseTicket subTicket = sub.getTicket();
+                if (subTicket == null) {
+                    subTicket = ticketRepository.findBySubOrderId(sub.getId()).orElse(null);
+                }
+                if (subTicket != null && subTicket.getStatus() != TicketStatus.APPROVED) {
+                    throw new OrderNotCheckoutableException(
+                            "Không thể thanh toán gộp đơn hàng #" + order.getId() + ": Kiện hàng " + sub.getSubOrderCode()
+                                    + " chưa được phê duyệt vé mua hàng (Trạng thái vé: " + subTicket.getStatus()
+                                    + "). Bạn có thể thanh toán riêng các kiện hàng đã duyệt trước hoặc chờ tất cả PO duyệt xong!");
+                }
+            }
+
+            // Tính tổng số tiền của các kiện hàng chưa thanh toán
+            BigDecimal amountToPay = unpaidSubOrders.stream()
+                    .map(SubOrder::getTotalAmount)
+                    .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+            order.setTotalAmount(amountToPay);
+
+            AppUser currentUser = securityUtils.getCurrentUser();
+            String changedBy = currentUser != null ? currentUser.getEmail() : "USER";
+            for (SubOrder sub : unpaidSubOrders) {
+                if (sub.getStatus() == OrderStatus.PENDING) {
+                    stateMachine.transitionSubOrder(sub, OrderStatus.AWAITING_PAYMENT, changedBy, "Parent order checkout initiated");
+                    subOrderRepository.save(sub);
+                }
+            }
+        } else {
+            // THANH TOÁN LẺ: Kiểm tra vé phê duyệt (PurchaseTicket) của chính đơn này
+            Optional<PurchaseTicket> ticketOpt = ticketRepository.findByOrderId(Long.valueOf(order.getId()));
+            if (ticketOpt.isPresent() && ticketOpt.get().getStatus() != TicketStatus.APPROVED) {
+                throw new OrderNotCheckoutableException(
+                        "Đơn hàng #" + order.getId() + " chưa được phê duyệt vé mua hàng (Trạng thái vé: "
+                                + ticketOpt.get().getStatus() + "). Vui lòng chờ Người kiểm duyệt duyệt đơn trước khi thanh toán!");
+            }
         }
 
         // 3. Tạo URL thanh toán VNPay (VnPayService sẽ chuyển order sang AWAITING_PAYMENT & tạo PaymentTransaction)
@@ -319,6 +413,95 @@ public class OrderService {
             idempotencyRecordRepository.save(newRecord);
         } catch (Exception e) {
             log.error("Lỗi khi lưu IdempotencyRecord cho đơn hàng #{}", order.getId(), e);
+        }
+
+        return checkoutResponse;
+    }
+
+    @Transactional(rollbackFor = Exception.class)
+    public OrderCheckoutResponse checkoutSubOrder(Integer orderId, Long subOrderId, String idempotencyKey, String bankCode, HttpServletRequest request) {
+        if (idempotencyKey == null || idempotencyKey.trim().isEmpty()) {
+            throw new IdempotencyKeyRequiredException("Header Idempotency-Key là bắt buộc khi checkout");
+        }
+
+        // 1. Kiểm tra Idempotency Record
+        Optional<IdempotencyRecord> recordOpt = idempotencyRecordRepository.findByIdempotencyKey(idempotencyKey);
+        if (recordOpt.isPresent()) {
+            IdempotencyRecord record = recordOpt.get();
+            if (!record.getOrderId().equals(orderId)) {
+                throw new IdempotencyKeyReusedException(
+                        "Khóa Idempotency-Key '" + idempotencyKey + "' đã được sử dụng cho đơn hàng khác #" + record.getOrderId());
+            }
+
+            LocalDateTime cutoff24h = LocalDateTime.now().minusHours(24);
+            if (record.getCreatedAt().isAfter(cutoff24h)) {
+                try {
+                    log.info("Idempotent hit cho đơn hàng #{}, kiện hàng #{}, key {}. Trả về kết quả checkout trước đó.", orderId, subOrderId, idempotencyKey);
+                    return objectMapper.readValue(record.getResponseJson(), OrderCheckoutResponse.class);
+                } catch (Exception e) {
+                    log.error("Lỗi parse responseJson từ IdempotencyRecord cho key {}", idempotencyKey, e);
+                }
+            }
+        }
+
+        // 2. Đọc đơn hàng và kiện hàng
+        Order order = orderRepository.findByIdForUpdate(orderId)
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy đơn hàng với mã ID: " + orderId));
+
+        securityUtils.verifyUserOrAdmin(Long.valueOf(order.getCustomer().getId()));
+
+        SubOrder subOrder = subOrderRepository.findByOrderIdAndId(orderId, subOrderId)
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy kiện hàng #" + subOrderId + " trong đơn hàng #" + orderId));
+
+        if (subOrder.getPaymentStatus() == OrderPaymentStatus.PAID) {
+            throw new OrderNotCheckoutableException("Kiện hàng " + subOrder.getSubOrderCode() + " đã được thanh toán trước đó.");
+        }
+
+        if (subOrder.getStatus() != OrderStatus.PENDING && subOrder.getStatus() != OrderStatus.AWAITING_PAYMENT) {
+            throw new OrderNotCheckoutableException("Kiện hàng " + subOrder.getSubOrderCode() + " không ở trạng thái được phép thanh toán. Trạng thái hiện tại: " + subOrder.getStatus());
+        }
+
+        // Kiểm tra vé phê duyệt (PurchaseTicket) của kiện hàng
+        PurchaseTicket ticket = subOrder.getTicket();
+        if (ticket == null) {
+            ticket = ticketRepository.findBySubOrderId(subOrderId).orElse(null);
+        }
+        if (ticket != null && ticket.getStatus() != TicketStatus.APPROVED) {
+            throw new OrderNotCheckoutableException("Kiện hàng " + subOrder.getSubOrderCode() + " chưa được duyệt vé mua hàng (Trạng thái vé: "
+                    + ticket.getStatus() + "). Vui lòng chờ người bán duyệt trước khi thanh toán!");
+        }
+
+        // 3. Tạo URL thanh toán VNPay cho kiện hàng lẻ
+        PaymentCreationRequest paymentRequest = PaymentCreationRequest.builder()
+                .orderId(order.getId())
+                .subOrderId(subOrder.getId())
+                .bankCode(bankCode)
+                .build();
+        PaymentUrlResponse paymentUrlResponse = vnPayService.createPaymentUrl(paymentRequest, request);
+
+        OrderCheckoutResponse checkoutResponse = OrderCheckoutResponse.builder()
+                .orderId(order.getId())
+                .subOrderId(subOrder.getId())
+                .subOrderCode(subOrder.getSubOrderCode())
+                .status(subOrder.getStatus())
+                .paymentId(paymentUrlResponse.getPaymentId())
+                .amount(paymentUrlResponse.getAmount())
+                .paymentUrl(paymentUrlResponse.getPaymentUrl())
+                .expiresAt(paymentUrlResponse.getExpireAt())
+                .build();
+
+        // 4. Lưu Idempotency Record
+        try {
+            String responseJson = objectMapper.writeValueAsString(checkoutResponse);
+            IdempotencyRecord newRecord = IdempotencyRecord.builder()
+                    .idempotencyKey(idempotencyKey)
+                    .orderId(order.getId())
+                    .responseJson(responseJson)
+                    .createdAt(LocalDateTime.now())
+                    .build();
+            idempotencyRecordRepository.save(newRecord);
+        } catch (Exception e) {
+            log.error("Không thể serialize OrderCheckoutResponse để lưu IdempotencyRecord cho key {}", idempotencyKey, e);
         }
 
         return checkoutResponse;
@@ -502,7 +685,10 @@ public class OrderService {
 
         if (currentUser.getRole() == Role.USER) {
             specification = specification.and(
-                    (root, query, cb) -> cb.equal(root.get("customer").get("Id"), currentUser.getCustomer().getId()));
+                    (root, query, cb) -> cb.and(
+                            cb.equal(root.get("customer").get("Id"), currentUser.getCustomer().getId()),
+                            cb.isNull(root.get("parentOrder"))
+                    ));
         } else if (currentUser.getRole() == Role.PRODUCT_OWNER) {
             specification = specification.and((root, query, cb) -> {
                 query.distinct(true);
@@ -526,7 +712,10 @@ public class OrderService {
         int cappedSize = Math.min(Math.max(size, 1), 100);
         Pageable pageable = PageRequest.of(page, cappedSize, SortUtils.buildSort(sort, "Id"));
 
-        Specification<Order> specification = (root, query, cb) -> cb.equal(root.get("customer").get("Id"), customerId);
+        Specification<Order> specification = (root, query, cb) -> cb.and(
+                cb.equal(root.get("customer").get("Id"), customerId),
+                cb.isNull(root.get("parentOrder"))
+        );
         if (status != null) {
             specification = specification.and((root, query, cb) -> cb.equal(root.get("status"), status));
         }
@@ -844,4 +1033,107 @@ public class OrderService {
         response.putAll(statusCounts);
         return response;
     }
+
+    private static final List<OrderStatus> REVENUE_STATUSES = List.of(
+            OrderStatus.PAID,
+            OrderStatus.CONFIRMED,
+            OrderStatus.PROCESSING,
+            OrderStatus.COMPLETED
+    );
+
+    @Transactional(readOnly = true)
+    public OrderTotalAmountResponse getTotalOrderAmountForAdmin(OrderStatus status) {
+        return getTotalOrderAmountForAdmin(status, null);
+    }
+
+    /**
+     * REQ: API tính doanh thu hôm nay của toàn hệ thống (Dành riêng cho ADMIN).
+     * Mặc định lấy ngày hiện tại (LocalDate.now()), FE gọi không cần truyền tham số ngày.
+     * Kiểm tra phân quyền chặt chẽ: Chỉ người dùng có vai trò ADMIN mới được phép truy cập.
+     */
+    @Transactional(readOnly = true)
+    public OrderTotalAmountResponse getTotalOrderAmountForAdmin(OrderStatus status, LocalDate date) {
+        AppUser currentUser = securityUtils.getCurrentUser();
+        if (currentUser.getRole() != Role.ADMIN) {
+            throw new AccessDeniedException("Chỉ Quản trị viên (Admin) mới có quyền xem tổng tiền của toàn bộ hệ thống");
+        }
+
+        LocalDate targetDate = (date != null) ? date : LocalDate.now();
+        LocalDateTime startOfDay = targetDate.atStartOfDay();
+        LocalDateTime endOfDay = targetDate.atTime(LocalTime.MAX);
+
+        List<OrderStatus> statuses = (status != null)
+                ? List.of(status)
+                : REVENUE_STATUSES;
+
+        BigDecimal totalAmount = orderRepository.sumRevenueByStatusesAndDate(statuses, startOfDay, endOfDay);
+        Long orderCount = orderRepository.countRevenueByStatusesAndDate(statuses, startOfDay, endOfDay);
+
+        return OrderTotalAmountResponse.builder()
+                .totalAmount(totalAmount != null ? totalAmount : BigDecimal.ZERO)
+                .orderCount(orderCount != null ? orderCount : 0L)
+                .date(targetDate)
+                .status(status)
+                .currency("VND")
+                .scope("ALL_SYSTEM")
+                .poId(null)
+                .poEmail(null)
+                .build();
+    }
+
+    @Transactional(readOnly = true)
+    public OrderTotalAmountResponse getTotalOrderAmountForCurrentPo(OrderStatus status) {
+        return getTotalOrderAmountForCurrentPo(status, null);
+    }
+
+    /**
+     * REQ: API tính doanh thu hôm nay của chính Product Owner đang đăng nhập.
+     * Mặc định lấy ngày hiện tại (LocalDate.now()), FE gọi không cần truyền tham số ngày.
+     * Kiểm tra phân quyền chặt chẽ:
+     * - Chỉ người dùng có vai trò PRODUCT_OWNER mới được phép gọi API.
+     * - Dữ liệu được cô lập tuyệt đối theo PO ID của tài khoản đăng nhập hiện tại.
+     */
+    @Transactional(readOnly = true)
+    public OrderTotalAmountResponse getTotalOrderAmountForCurrentPo(OrderStatus status, LocalDate date) {
+        AppUser currentUser = securityUtils.getCurrentUser();
+        if (currentUser.getRole() != Role.PRODUCT_OWNER) {
+            throw new AccessDeniedException("Chỉ Product Owner (PO) mới có quyền xem tổng tiền các đơn hàng của mình");
+        }
+
+        Long poId = currentUser.getId();
+        LocalDate targetDate = (date != null) ? date : LocalDate.now();
+        LocalDateTime startOfDay = targetDate.atStartOfDay();
+        LocalDateTime endOfDay = targetDate.atTime(LocalTime.MAX);
+
+        List<OrderStatus> statuses = (status != null)
+                ? List.of(status)
+                : REVENUE_STATUSES;
+
+        BigDecimal totalAmount;
+        Long orderCount;
+
+        // Ưu tiên tính từ bảng sub_orders (kiến trúc kiện hàng phân tách theo PO)
+        Long subOrderCount = subOrderRepository.countRevenueByPoOwnerIdAndDate(poId, statuses, startOfDay, endOfDay);
+
+        if (subOrderCount != null && subOrderCount > 0) {
+            orderCount = subOrderCount;
+            totalAmount = subOrderRepository.sumRevenueByPoOwnerIdAndDate(poId, statuses, startOfDay, endOfDay);
+        } else {
+            // Fallback sang order_items cho các đơn hàng cũ hoặc direct orders chưa có sub_order
+            orderCount = orderRepository.countRevenueOrdersByProductOwnerIdAndDate(poId, statuses, startOfDay, endOfDay);
+            totalAmount = orderRepository.sumRevenueByProductOwnerIdAndDate(poId, statuses, startOfDay, endOfDay);
+        }
+
+        return OrderTotalAmountResponse.builder()
+                .totalAmount(totalAmount != null ? totalAmount : BigDecimal.ZERO)
+                .orderCount(orderCount != null ? orderCount : 0L)
+                .date(targetDate)
+                .status(status)
+                .currency("VND")
+                .scope("PRODUCT_OWNER")
+                .poId(poId)
+                .poEmail(currentUser.getEmail())
+                .build();
+    }
 }
+
